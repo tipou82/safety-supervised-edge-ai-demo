@@ -9,7 +9,7 @@ The supervisor implements the ASIL-B-inspired monitoring path using QNX RTOS des
 **Why QNX?**
 - Microkernel architecture provides fault isolation
 - POSIX PSE52 profile suitable for safety-critical systems
-- Certified to IEC 61508 SIL 3, ISO 26262 ASIL D (when properly qualified)
+- Certifiable to IEC 61508 SIL 3, ISO 26262 ASIL D as a product (requires qualified BSP and tool chain — **NOT applicable to this Raspberry Pi demonstrator**)
 - Deterministic scheduling with priority inheritance
 - Memory protection between processes
 

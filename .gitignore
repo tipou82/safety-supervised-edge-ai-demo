@@ -1,0 +1,94 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+.eggs/
+*.so
+.venv/
+venv/
+env/
+.env
+
+# C / C++
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+*.out
+*.dSYM/
+*.su
+*.idb
+*.pdb
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+_deps/
+*.cmake
+!cmake/*.cmake
+
+# ROS2 / colcon build artifacts
+build/
+install/
+log/
+.colcon_install_layout
+.colcon_cache/
+*.ros2bag
+*.db3
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# JetBrains IDEs
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Linux / macOS temporary files
+*~
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+core
+*.tmp
+*.bak
+*.orig
+
+# Generated documentation
+docs/_build/
+doxygen_output/
+html/
+latex/
+
+# Test output and coverage
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+junit*.xml
+test_results/
+
+# Compiled QNX binaries
+*.nto
+*.nto.sym
+*.pinfo

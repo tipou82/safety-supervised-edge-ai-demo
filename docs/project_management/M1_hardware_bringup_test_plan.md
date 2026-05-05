@@ -2,7 +2,7 @@
 
 **Project**: Safety-Supervised Edge AI Demo on Raspberry Pi with QNX/Linux Concepts
 **Milestone**: M1 – Platform Access and Hardware Bring-up
-**Status**: Not started
+**Status**: M1.0 complete — M1.1 not started
 **Scope**: Manual bring-up tests only. No ROS2, no automated test framework.
 
 ---
@@ -266,15 +266,15 @@
 
 | Test ID | Sub-milestone | Description | Pass/Fail | Date |
 |---|---|---|---|---|
-| TC-M10-001 | M1.0 | Host PC → Pi 5 SSH | | |
-| TC-M10-002 | M1.0 | Host PC → Pi 400 SSH | | |
-| TC-M10-003 | M1.0 | Pi 5 OS version capture | | |
-| TC-M10-004 | M1.0 | Pi 400 OS status capture | | |
-| TC-M10-005 | M1.0 | Direct Ethernet static IP configuration | | |
-| TC-M10-006 | M1.0 | Pi 5 → Pi 400 ping | | |
-| TC-M10-007 | M1.0 | Pi 400 → Pi 5 ping | | |
-| TC-M10-008 | M1.0 | Repository clone/sync to Pi 5 | | |
-| TC-M10-009 | M1.0 | VS Code Remote SSH to Pi 5 | | |
+| TC-M10-001 | M1.0 | Host PC → Pi 5 SSH | Pass | 2026-05-05 |
+| TC-M10-002 | M1.0 | Host PC → Pi 400 SSH | Pass | 2026-05-05 |
+| TC-M10-003 | M1.0 | Pi 5 OS version capture | Pass | 2026-05-05 |
+| TC-M10-004 | M1.0 | Pi 400 OS status capture | Pass (Linux fallback) | 2026-05-05 |
+| TC-M10-005 | M1.0 | Direct Ethernet static IP configuration | Pass | 2026-05-05 |
+| TC-M10-006 | M1.0 | Pi 5 → Pi 400 ping | Pass | 2026-05-05 |
+| TC-M10-007 | M1.0 | Pi 400 → Pi 5 ping | Pass | 2026-05-05 |
+| TC-M10-008 | M1.0 | Repository clone/sync to Pi 5 | Pass | 2026-05-05 |
+| TC-M10-009 | M1.0 | VS Code Remote SSH to Pi 5 | Pass | 2026-05-05 |
 | TC-M11-001 | M1.1 | Camera detection | | |
 | TC-M11-002 | M1.1 | Camera preview or still capture | | |
 | TC-M11-003 | M1.1 | Green LED GPIO toggle | | |

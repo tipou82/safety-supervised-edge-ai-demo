@@ -46,15 +46,13 @@ This demonstrator showcases a dual-processor architecture for safety-supervised 
 
 ## Planned Milestones
 
-- [x] Repository initialization and documentation structure
-- [ ] ROS2 workspace setup and node skeletons
-- [ ] Camera AI node with object detection (development only)
-- [ ] Ultrasonic sensor node implementation
-- [ ] GPIO-based watchdog communication
-- [ ] QNX supervisor implementation (or Linux fallback)
-- [ ] State machine and safe state transitions
-- [ ] Fault injection testing framework
-- [ ] Full system integration and demonstration
+- [x] M0: Repository baseline — documentation, requirements, architecture
+- [ ] M1: Platform access and hardware bring-up — SSH, direct Ethernet, camera, sensors, LEDs
+- [ ] M2: ROS2 sensor pipeline — workspace, placeholder nodes, topic definitions
+- [ ] M3: Deterministic decision logic — C++20 state evaluator, unit tests
+- [ ] M4: Fault injection — five scenarios, safe-state latency measured
+- [ ] M5: External supervisor — QNX watchdog prototype or Linux fallback (optional)
+- [ ] M6: Portfolio-ready demo — README finalized, demo script, test report
 
 ## Quick Start
 

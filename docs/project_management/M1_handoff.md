@@ -1,4 +1,10 @@
-# M1 Handoff – Hardware Bring-up
+# M1 Handoff – Platform Access and Hardware Bring-up
+
+> **M1 begins with M1.0 Platform Access Baseline** before any hardware component testing.
+> The Pi 5 and Pi 400 must be reachable via SSH, their OS versions documented, and the direct
+> Ethernet link verified by ping. Only then does M1.1 hardware component bring-up begin.
+> See `docs/project_management/M1_platform_access_baseline.md` for the step-by-step access checklist
+> and `docs/project_management/M1_hardware_bringup_test_plan.md` for all test cases.
 
 ## Current Repository Status
 

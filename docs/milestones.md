@@ -8,7 +8,7 @@
 | ID | Milestone | Key Deliverables | Status |
 |----|-----------|-----------------|--------|
 | M0 | **Repository Baseline** | Documentation skeleton, requirements, traceability matrix, SysML model, engineering logbook, `.gitignore` | Complete |
-| M1 | **Hardware Bring-up** | Pi5 + Pi400 wired per `hardware/wiring.md`; GPIO heartbeat verified; emergency stop verified; voltage dividers validated | Planned |
+| M1 | **Platform Access and Hardware Bring-up** | M1.0: Host PC → Pi5/Pi400 SSH; Pi5 ↔ Pi400 direct Ethernet (192.168.50.x/24) ping verified; OS versions documented; repo synced to Pi5. M1.1: Camera, LEDs, buzzer, ultrasonic sensor tested individually on Pi5 | Planned |
 | M2 | **ROS2 Sensor Pipeline** | `health_node`, `ultrasonic_node`, `camera_ai_node` implemented and passing unit tests; ROS2 topics confirmed per `interfaces.yaml` | Planned |
 | M3 | **Deterministic Decision Logic** | `decision_node`, `actuator_node` implemented; Linux-fallback supervisor running; state machine transitions manually validated | Planned |
 | M4 | **Fault Injection** | FI-001 through FI-005 executed; end-to-end latency measured (<150 ms target); timing interference test passed; traceability CSV updated | Planned |

@@ -49,6 +49,24 @@ Pi400 GND (Pin 14)       ───→ Pi5 GND (Pin 9)
 - **Function**: Safe state command from QNX to actuator node
 - **Safety-critical**: Yes (emergency brake)
 
+### Direct Ethernet Link (Pi 5 ↔ Pi 400)
+
+A dedicated Ethernet cable connects Pi 5 and Pi 400 directly for future supervisor/watchdog communication. In M1 this link is verified by ping only. The heartbeat/watchdog protocol is not implemented in M1.
+
+```
+Pi 5 Ethernet port ─────────────────────── Pi 400 Ethernet port
+  Static IP: 192.168.50.10/24               Static IP: 192.168.50.20/24
+```
+
+| Parameter | Value |
+|---|---|
+| Cable type | Standard Cat5e/Cat6 Ethernet (direct or crossover — modern adapters auto-negotiate) |
+| Pi 5 address | 192.168.50.10/24 |
+| Pi 400 address | 192.168.50.20/24 |
+| Purpose (M1) | Connectivity verification — ping only |
+| Purpose (future) | Heartbeat/watchdog protocol (deferred to later milestone) |
+| Development access | Separate — via Wi-Fi or home LAN, independent of this link |
+
 ### Notes on Inter-Processor Wiring
 
 - **Ground Reference**: Ensure common ground between both Pi boards

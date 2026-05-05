@@ -88,6 +88,24 @@ gpio:
     safety_critical: true
 
 ---
+# Ethernet Interface (Inter-Processor Supervisor Link)
+
+ethernet:
+  supervisor_link:
+    description: Dedicated direct Ethernet link between Pi 5 and Pi 400 for future supervisor/watchdog communication
+    pi5_address: 192.168.50.10/24
+    pi400_address: 192.168.50.20/24
+    interface_name: eth0 (confirm actual name with `ip link show` on each board)
+    purpose_m1: Connectivity verification — ping only. No protocol implemented in M1.
+    purpose_future: Heartbeat/watchdog communication (protocol details deferred to later milestone)
+    m1_verification: ping -c 4 from each board to the other; 0% packet loss expected
+    safety_critical: false (M1 only; may become safety-relevant in later milestones)
+    notes:
+      - Development SSH access uses a separate network (Wi-Fi or home LAN)
+      - Heartbeat GPIO remains the primary safety-critical inter-processor signal
+      - This Ethernet link is supplementary and not part of the M1 safety concept
+
+---
 # Shared Memory Interface (Inter-Processor)
 
 shared_memory:

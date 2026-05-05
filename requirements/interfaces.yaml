@@ -1,0 +1,256 @@
+# Interface Specifications
+# Safety-Supervised Edge AI Demonstrator
+
+---
+# ROS2 Topics (Linux Domain)
+
+topics:
+  /detections:
+    type: vision_msgs/Detection2DArray
+    qos:
+      reliability: BEST_EFFORT
+      history: KEEP_LAST
+      depth: 10
+    publisher: camera_ai_node
+    subscribers:
+      - decision_node
+    rate: 10 Hz
+    description: Object detection results from AI inference
+    safety_relevant: false
+
+  /obstacles:
+    type: sensor_msgs/Range
+    qos:
+      reliability: RELIABLE
+      history: KEEP_LAST
+      depth: 5
+    publisher: ultrasonic_node
+    subscribers:
+      - decision_node
+    rate: 10 Hz
+    description: Ultrasonic distance measurements
+    safety_relevant: true
+    notes: Redundant perception for close-range obstacles
+
+  /cmd_vel:
+    type: geometry_msgs/Twist
+    qos:
+      reliability: RELIABLE
+      history: KEEP_LAST
+      depth: 1
+    publisher: decision_node
+    subscribers:
+      - actuator_node
+    rate: 20 Hz
+    description: Velocity commands for motion control
+    safety_relevant: false
+
+  /system_health:
+    type: diagnostic_msgs/DiagnosticArray
+    qos:
+      reliability: RELIABLE
+      history: KEEP_LAST
+      depth: 5
+    publisher: health_node
+    subscribers:
+      - decision_node
+    rate: 1 Hz
+    description: Node health status and diagnostics
+    safety_relevant: true
+
+---
+# GPIO Interfaces (Inter-Processor)
+
+gpio:
+  heartbeat:
+    direction: Linux → QNX
+    linux_gpio: 17
+    qnx_gpio_input: TBD (based on Pi400 pinout)
+    signal_type: Digital output (Linux), edge-triggered input (QNX)
+    voltage: 3.3V logic level
+    frequency: 10 Hz
+    duty_cycle: 50%
+    pattern: Square wave (50ms high, 50ms low)
+    timeout_threshold: 500 ms
+    description: Aliveness signal from Linux Health Monitor to QNX Watchdog
+    safety_critical: true
+
+  emergency_stop:
+    direction: QNX → Linux
+    qnx_gpio_output: TBD
+    linux_gpio: 27
+    signal_type: Digital output (QNX), polled input (Linux)
+    voltage: 3.3V logic level
+    active_state: Active-low (0V = emergency stop)
+    poll_rate: 100 Hz (Linux actuator node)
+    response_time: <30 ms (from assertion to motor disable)
+    description: Emergency stop command from QNX supervisor to actuator node
+    safety_critical: true
+
+---
+# Shared Memory Interface (Inter-Processor)
+
+shared_memory:
+  name: /dev/shm/safety_state
+  size: 4096  # 4KB page-aligned
+  access:
+    linux: Read/Write
+    qnx: Read-only
+  update_rate: 10 Hz (written by Linux)
+  validation: CRC32 checksum
+
+  structure:
+    - field: magic
+      type: uint32_t
+      offset: 0
+      value: 0xCAFEBABE
+      description: Magic number for structure validation
+
+    - field: version
+      type: uint8_t
+      offset: 4
+      value: 1
+      description: Protocol version number
+
+    - field: linux_state
+      type: uint8_t
+      offset: 5
+      values:
+        0: LINUX_STATE_INIT
+        1: LINUX_STATE_NORMAL
+        2: LINUX_STATE_WARNING
+        3: LINUX_STATE_DEGRADED
+        4: LINUX_STATE_ERROR
+      description: Current state of Linux domain
+
+    - field: node_status
+      type: uint8_t
+      offset: 6
+      bitmask:
+        bit0: camera_ai_node_alive
+        bit1: ultrasonic_node_alive
+        bit2: decision_node_alive
+        bit3: actuator_node_alive
+        bit4: health_node_alive
+        bit5-7: reserved
+      description: Liveness bitmap for ROS2 nodes
+
+    - field: heartbeat_count
+      type: uint32_t
+      offset: 8
+      description: Monotonic counter incremented with each heartbeat
+      overflow: Wraps at UINT32_MAX
+
+    - field: timestamp_ms
+      type: uint64_t
+      offset: 12
+      description: Linux system timestamp (milliseconds since boot)
+      source: CLOCK_MONOTONIC
+
+    - field: sensor_health
+      type: uint8_t
+      offset: 20
+      values:
+        0: SENSORS_OK
+        1: CAMERA_DEGRADED
+        2: ULTRASONIC_DEGRADED
+        3: MULTIPLE_DEGRADED
+      description: Aggregate sensor health status
+
+    - field: reserved
+      type: uint8_t[11]
+      offset: 21
+      description: Reserved for future use, must be zero
+
+    - field: crc32
+      type: uint32_t
+      offset: 32
+      description: CRC32 checksum over bytes 0-31
+      polynomial: 0xEDB88320 (IEEE CRC32)
+
+  total_size: 36 bytes (rest of 4KB unused)
+
+---
+# Message Definitions (Custom)
+
+custom_messages:
+  SafetyState:
+    package: safety_msgs
+    fields:
+      - name: supervisor_state
+        type: uint8
+        values:
+          0: SUPERVISOR_INIT
+          1: SUPERVISOR_OK
+          2: SUPERVISOR_WARNING
+          3: SUPERVISOR_SAFE_STATE
+      - name: last_heartbeat_ms
+        type: uint64
+        description: Time of last valid heartbeat (QNX local clock)
+      - name: fault_code
+        type: uint32
+        description: Bitfield of detected faults
+        bitmask:
+          bit0: WATCHDOG_TIMEOUT
+          bit1: CRC_ERROR
+          bit2: INVALID_STATE
+          bit3: GPIO_FAULT
+      - name: uptime_ms
+        type: uint64
+        description: Supervisor uptime since last reset
+
+---
+# Timing Constraints
+
+timing:
+  heartbeat_generation:
+    nominal_period: 100 ms
+    tolerance: ±20 ms
+    source: Linux Health Monitor
+    jitter_budget: 10 ms
+
+  watchdog_monitoring:
+    cycle_time: 10 ms
+    timeout_threshold: 500 ms
+    detection_latency: <100 ms
+    source: QNX Watchdog Server
+
+  safe_state_latency:
+    detection_to_decision: <20 ms
+    decision_to_actuation: <30 ms
+    total_budget: <150 ms
+    source: QNX Safe State Controller
+
+  ros2_message_latency:
+    perception_to_decision: <50 ms
+    decision_to_actuation: <30 ms
+    end_to_end: <200 ms (NORMAL state)
+
+---
+# Protocol Compliance
+
+protocols:
+  ros2:
+    version: ROS2 Humble
+    middleware: FastDDS (default)
+    domain_id: 0
+    security: false (not required for demo)
+
+  gpio:
+    standard: Linux GPIO sysfs / libgpiod
+    electrical: 3.3V CMOS logic, GPIO_DRIVE_STRENGTH_2MA
+
+  shared_memory:
+    standard: POSIX shm_open / mmap
+    synchronization: Lock-free read (QNX), mutex write (Linux)
+    endianness: Little-endian (ARM architecture)
+
+---
+# Safety Notes
+
+safety_considerations:
+  - GPIO heartbeat is single point of failure (no redundant wiring)
+  - Shared memory corruption detected by CRC but not authenticated
+  - ROS2 topics in development domain are not safety-certified
+  - Emergency stop GPIO provides fail-safe path independent of ROS2
+  - All safety-critical interfaces (GPIO heartbeat, emergency stop) use simple protocols

@@ -27,10 +27,16 @@ elif command -v libcamera-hello &>/dev/null; then
     RPICAM_HELLO=$(command -v libcamera-hello)
     echo "$PASS libcamera-hello found (older alias): $RPICAM_HELLO"
 else
-    echo "$FAIL rpicam-hello / libcamera-hello not found."
-    echo "       To install on Ubuntu 24.04 (Raspberry Pi):"
-    echo "       sudo apt install rpicam-apps"
-    echo "       or: sudo apt install libcamera-apps"
+    echo "$INFO rpicam-hello / libcamera-hello not available on Ubuntu 24.04."
+    echo "       Using 'cam' (libcamera-tools) instead."
+fi
+
+CAM_TOOL=""
+if command -v cam &>/dev/null; then
+    CAM_TOOL=$(command -v cam)
+    echo "$PASS cam (libcamera-tools) found: $CAM_TOOL"
+else
+    echo "$FAIL cam not found. Install with: sudo apt install libcamera-tools"
 fi
 
 V4L2=""
@@ -66,7 +72,7 @@ else
 fi
 echo ""
 
-# --- 4. List cameras with rpicam / libcamera ---
+# --- 4. List cameras with cam / rpicam / libcamera ---
 echo "--- Step 4: Camera list ---"
 if [[ -n "$RPICAM_HELLO" ]]; then
     echo "$INFO Running: ${RPICAM_HELLO} --list-cameras"
@@ -79,9 +85,23 @@ if [[ -n "$RPICAM_HELLO" ]]; then
     else
         echo "$TODO Could not determine camera status from output. Review above."
     fi
+elif [[ -n "$CAM_TOOL" ]]; then
+    echo "$INFO Running: cam --list (libcamera-tools)"
+    CAMERA_LIST=$(timeout 10 cam --list 2>&1 || true)
+    echo "$CAMERA_LIST"
+    if echo "$CAMERA_LIST" | grep -qi "Available cameras" && \
+       echo "$CAMERA_LIST" | grep -qiE "^\s+[0-9]+:"; then
+        echo "$PASS Camera(s) detected by libcamera cam tool."
+    elif echo "$CAMERA_LIST" | grep -qi "Available cameras"; then
+        echo "$FAIL CSI interface found but no camera module detected."
+        echo "       Check: CSI ribbon cable fully inserted, correct orientation."
+        echo "       Check: camera module physically connected and powered."
+    else
+        echo "$TODO Could not determine camera status. Review output above."
+    fi
 else
-    echo "$TODO Skipped — rpicam-hello / libcamera-hello not installed."
-    echo "       Install with: sudo apt install rpicam-apps"
+    echo "$TODO Skipped — no camera tool available."
+    echo "       Install with: sudo apt install libcamera-tools"
 fi
 echo ""
 
@@ -103,14 +123,13 @@ echo " Camera Test Summary"
 echo "======================================================"
 echo ""
 echo "Next steps if camera not detected:"
-echo "  1. sudo apt install rpicam-apps v4l-utils"
+echo "  1. sudo apt install libcamera-tools v4l-utils  (Ubuntu 24.04)"
 echo "  2. Check CSI cable: fully inserted, metal contacts facing correct direction"
 echo "  3. Re-run this script"
-echo "  4. If still not found: sudo raspi-config → Interface Options → Camera"
 echo ""
 echo "This script does NOT start a camera preview (no display available)."
 echo "To test still capture once camera is detected:"
-echo "  rpicam-still -o /tmp/test_capture.jpg --timeout 2000"
+echo "  cam -c 0 --capture=1 -o /tmp/test_capture.jpg"
 echo "  ls -lh /tmp/test_capture.jpg"
 echo ""
 echo "Done."

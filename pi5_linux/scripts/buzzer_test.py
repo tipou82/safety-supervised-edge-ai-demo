@@ -5,17 +5,21 @@
 # warning patterns, safe-state alerts, or any runtime safety logic.
 
 # --- Wiring assumptions (confirm before running) ---
-# GPIO 26 (Pin 37) → Buzzer positive terminal
-# GND    (Pin 39)  → Buzzer negative terminal
+# GPIO 18 (Pin 12) → Buzzer positive terminal
+# GND              → Buzzer negative terminal
 # Active 3.3 V buzzer — sounds when GPIO is driven HIGH.
 # Do NOT use a passive buzzer (requires PWM frequency, different script).
 # Current draw: typically 30–50 mA. Pi5 GPIO can source up to ~16 mA per pin.
 # If buzzer draws more, use a NPN transistor (e.g. 2N2222) as a switch.
+#
+# NOTE: GPIO 18 (Pin 12) was previously assigned to Motor A PWM (ENA) in
+# hardware/gpio_mapping.md. Reassigned to buzzer for M1.1 bring-up.
+# Will be reviewed before M2 motor driver integration.
 
 import sys
 import time
 
-GPIO_BUZZER = 26  # Pin 37
+GPIO_BUZZER = 18  # Pin 12
 GPIO_CHIP   = 4   # Pi5 RP1 southbridge
 
 BEEP_DURATION_S = 0.5   # Keep short — buzzer can be loud
@@ -28,8 +32,8 @@ def check_wiring() -> bool:
     print("====================================================")
     print()
     print("Wiring assumptions:")
-    print("  GPIO 26 (Pin 37) → Buzzer (+)")
-    print("  GND    (Pin 39)  → Buzzer (-)")
+    print("  GPIO 18 (Pin 12) → Buzzer (+)")
+    print("  GND              → Buzzer (-)")
     print("  Active 3.3 V buzzer only (not passive).")
     print()
     print("WARNING: The buzzer may be LOUD. Be prepared.")

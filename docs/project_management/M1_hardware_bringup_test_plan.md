@@ -275,14 +275,14 @@
 | TC-M10-007 | M1.0 | Pi 400 → Pi 5 ping | Pass | 2026-05-05 |
 | TC-M10-008 | M1.0 | Repository clone/sync to Pi 5 | Pass | 2026-05-05 |
 | TC-M10-009 | M1.0 | VS Code Remote SSH to Pi 5 | Pass | 2026-05-05 |
-| TC-M11-001 | M1.1 | Camera detection | | |
-| TC-M11-002 | M1.1 | Camera preview or still capture | | |
-| TC-M11-003 | M1.1 | Green LED GPIO toggle | | |
-| TC-M11-004 | M1.1 | Yellow LED GPIO toggle | | |
-| TC-M11-005 | M1.1 | Red LED GPIO toggle | | |
-| TC-M11-006 | M1.1 | Buzzer GPIO toggle | | |
-| TC-M11-007 | M1.1 | Ultrasonic distance reading | | |
-| TC-M11-008 | M1.1 | Wiring deviation review | | |
+| TC-M11-001 | M1.1 | Camera detection | Pass | 2026-05-07 |
+| TC-M11-002 | M1.1 | Camera preview or still capture | Pass | 2026-05-07 |
+| TC-M11-003 | M1.1 | Green LED GPIO toggle | Pass | 2026-05-07 |
+| TC-M11-004 | M1.1 | Yellow LED GPIO toggle | Pass | 2026-05-07 |
+| TC-M11-005 | M1.1 | Red LED GPIO toggle | Pass | 2026-05-07 |
+| TC-M11-006 | M1.1 | Buzzer GPIO toggle | Pass | 2026-05-07 |
+| TC-M11-007 | M1.1 | Ultrasonic distance reading | Pass | 2026-05-07 |
+| TC-M11-008 | M1.1 | Wiring deviation review | Pass | 2026-05-07 |
 
 ---
 

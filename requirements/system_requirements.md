@@ -15,10 +15,11 @@ This document defines the system-level requirements for the Safety-Supervised Ed
 - **Priority**: Medium (development domain, not safety-critical)
 
 **SYS-FUNC-002**: Ultrasonic Sensing
-- The system shall provide ultrasonic distance measurements from 3 sensors
-- The system shall detect obstacles in the range 2 cm to 400 cm
+- The system shall provide ultrasonic distance measurements from 1 Grove Ultrasonic Ranger sensor
+- The system shall detect obstacles in the range 2 cm to 350 cm
 - The system shall publish obstacle data at minimum 10 Hz
 - **Priority**: High (provides redundant perception)
+- **Hardware note**: Single sensor (front-facing). Multi-sensor configuration deferred.
 
 **SYS-FUNC-003**: Sensor Fusion
 - The system shall compare camera detections with ultrasonic measurements
@@ -36,6 +37,7 @@ This document defines the system-level requirements for the Safety-Supervised Ed
 - The system shall convert velocity commands to motor PWM signals
 - The system shall provide emergency stop capability via GPIO override
 - **Priority**: High (safety-relevant interface)
+- **Hardware note**: Motor driver and DC motors not present in current hardware build. GPIO pins reserved. Deferred to future milestone.
 
 ### Safety Supervision
 

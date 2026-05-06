@@ -64,7 +64,7 @@ topics:
 gpio:
   heartbeat:
     direction: Linux → QNX
-    linux_gpio: 17
+    linux_gpio: TBD (GPIO 17 currently used for LED; reassignment pending M2)
     qnx_gpio_input: TBD (based on Pi400 pinout)
     signal_type: Digital output (Linux), edge-triggered input (QNX)
     voltage: 3.3V logic level
@@ -78,7 +78,7 @@ gpio:
   emergency_stop:
     direction: QNX → Linux
     qnx_gpio_output: TBD
-    linux_gpio: 27
+    linux_gpio: TBD (GPIO 27 currently used for LED; reassignment pending M2)
     signal_type: Digital output (QNX), polled input (Linux)
     voltage: 3.3V logic level
     active_state: Active-low (0V = emergency stop)
@@ -86,6 +86,16 @@ gpio:
     response_time: <30 ms (from assertion to motor disable)
     description: Emergency stop command from QNX supervisor to actuator node
     safety_critical: true
+
+  ultrasonic_sig:
+    sensor: Grove Ultrasonic Ranger (×1, front-facing)
+    linux_gpio: 23
+    physical_pin: 16
+    protocol: Single-wire SIG (bidirectional — output for trigger, input for echo)
+    voltage: 3.3V (sensor powered at 3.3V; no voltage divider required)
+    trigger_pulse: 10 µs HIGH
+    range_cm: 2–350
+    safety_critical: false
 
 ---
 # Ethernet Interface (Inter-Processor Supervisor Link)

@@ -10,18 +10,23 @@ This document describes the physical wiring between Raspberry Pi 5 (Linux/ROS2 d
 
 ## Bill of Materials
 
+**Actual hardware as of M1.1 (2026-05-07)**
+
 | Component | Quantity | Purpose | Notes |
 |-----------|----------|---------|-------|
 | Raspberry Pi 5 (8GB) | 1 | Linux/ROS2 domain | Main perception processor |
-| Raspberry Pi 400 | 1 | QNX supervisor domain | Safety monitor |
-| HC-SR04 Ultrasonic Sensors | 3 | Obstacle detection | 2cm-400cm range |
-| USB Camera (or Pi Camera) | 1 | AI perception | 1080p, 30fps recommended |
-| Motor Driver (L298N or similar) | 1 | Motor control | PWM input, bidirectional |
-| DC Motors | 2 | Actuators | 12V or 6V depending on robot |
+| Raspberry Pi 400 | 1 | QNX-inspired supervisor domain | Safety monitor (Linux fallback) |
+| Raspberry Pi Camera Module 3 | 1 | AI perception | IMX708, 4608×2592, CSI ribbon cable |
+| Grove Ultrasonic Ranger | 1 | Obstacle detection | 2–350 cm, single-wire SIG, 3.3 V |
+| Traffic-light LED module | 1 | System state indicators | Green/Yellow/Red, GPIO-driven |
+| Active 3.3 V buzzer | 1 | Audible alert | Sounds when GPIO driven HIGH |
 | Jumper wires | 20+ | GPIO connections | Dupont female-female |
-| Breadboard | 1 | Prototyping | Optional for sensor power |
+| Breadboard | 1 | Prototyping | Sensor and LED wiring |
 | Power supply (5V, 3A+) | 2 | Power each Pi | USB-C for Pi5, USB-C for Pi400 |
-| Power supply (motor voltage) | 1 | Motor power | Separate from logic power |
+
+**Not present in current hardware build** (deferred to future milestone):
+- Motor driver (L298N or similar)
+- DC motors
 
 ## GPIO Pin Mapping
 
@@ -76,88 +81,55 @@ Pi 5 Ethernet port ────────────────────�
 
 ## Sensor Wiring
 
-### Ultrasonic Sensors (HC-SR04) x3
+### Grove Ultrasonic Ranger (×1, front)
 
-Each sensor requires 4 connections:
+Single-wire SIG protocol — one GPIO pin handles both trigger and echo.
 
-**Sensor 1 (Front Center)**
 ```
-HC-SR04 Pin      → Pi5 GPIO
-VCC              → 5V (Pin 2)
-GND              → GND (Pin 6)
-TRIG             → GPIO 23 (Pin 16)
-ECHO             → GPIO 24 (Pin 18) via voltage divider
-```
-
-**Sensor 2 (Front Left)**
-```
-HC-SR04 Pin      → Pi5 GPIO
-VCC              → 5V (Pin 4)
-GND              → GND (Pin 9)
-TRIG             → GPIO 5 (Pin 29)
-ECHO             → GPIO 6 (Pin 31) via voltage divider
+Grove Pin        → Pi5
+Yellow (SIG)     → GPIO 23 (Pin 16)
+White  (NC)      → not connected
+Red    (VCC)     → 3.3 V (Pin 1 or 17)
+Black  (GND)     → GND (Pin 6)
 ```
 
-**Sensor 3 (Front Right)**
-```
-HC-SR04 Pin      → Pi5 GPIO
-VCC              → 5V (Pin 4)
-GND              → GND (Pin 14)
-TRIG             → GPIO 13 (Pin 33)
-ECHO             → GPIO 19 (Pin 35) via voltage divider
-```
+- No voltage divider required — powered at 3.3 V, SIG output is 3.3 V logic.
+- Range: 2–350 cm.
 
-**Voltage Divider for ECHO Pin**:
-HC-SR04 ECHO output is 5V, but Pi GPIO is 3.3V tolerant. Use voltage divider:
-```
-ECHO pin ──── R1 (1kΩ) ──┬──── Pi GPIO
-                          │
-                         R2 (2kΩ)
-                          │
-                         GND
+### Camera — Raspberry Pi Camera Module 3
 
-Vout = 5V * (2kΩ / (1kΩ + 2kΩ)) = 3.33V
+```
+Camera Module 3 → Pi5 CSI connector (ribbon cable)
 ```
 
-### Camera
+- Sensor: IMX708, 4608×2592 (10-bit RGGB), up to 120 fps at 1536×864.
+- No GPIO wiring required.
+- Detected automatically at boot via `camera_auto_detect=1` in `/boot/firmware/config.txt`.
 
-**USB Camera**: Connect to Pi5 USB 3.0 port (blue connector).
+### Status LEDs (Traffic-light module)
 
-**Pi Camera Module**: Connect to Pi5 camera connector (CSI).
+```
+GPIO 17 (Pin 11) → Green LED  anode  → GND  (NORMAL state indicator)
+GPIO 27 (Pin 13) → Yellow LED anode  → GND  (DEGRADED state indicator)
+GPIO 22 (Pin 15) → Red LED    anode  → GND  (SAFE STATE indicator)
+```
 
-No GPIO wiring required for camera.
+Include current-limiting resistors (330 Ω recommended) on each LED.
+
+### Active Buzzer
+
+```
+GPIO 18 (Pin 12) → Buzzer (+)
+GND              → Buzzer (−)
+```
+
+Active 3.3 V buzzer — sounds when GPIO driven HIGH.
 
 ## Actuator Wiring
 
-### Motor Driver (L298N)
-
-**Control Signals from Pi5**
-```
-L298N Pin        → Pi5 GPIO
-IN1 (Motor A Dir) → GPIO 22 (Pin 15)
-IN2 (Motor A Dir) → GPIO 10 (Pin 19)
-IN3 (Motor B Dir) → GPIO 9 (Pin 21)
-IN4 (Motor B Dir) → GPIO 11 (Pin 23)
-ENA (Motor A PWM) → GPIO 18 (Pin 12, PWM0)
-ENB (Motor B PWM) → GPIO 12 (Pin 32, PWM0)
-```
-
-**Emergency Stop from QNX (via Pi5)**
-```
-Pi5 GPIO 27 (Pin 13) ──→ Motor driver ENABLE (active-high)
-```
-Logic: When GPIO 27 is LOW (emergency stop asserted), motor driver is disabled.
-
-**Power Connections**
-```
-L298N Pin        → Connection
-12V              → Motor power supply +
-GND              → Motor power supply - AND Pi5 GND (Pin 6)
-OUT1, OUT2       → Motor A
-OUT3, OUT4       → Motor B
-```
-
-**Important**: Common ground between motor power supply and Pi5 logic ground.
+Motor driver and DC motors are **not present in the current hardware build**.
+Motor control GPIO assignments (GPIO 9, 10, 11, 12) are reserved but unconnected.
+Motor integration is deferred to a future milestone.
 
 ## Power Distribution
 
@@ -166,96 +138,80 @@ OUT3, OUT4       → Motor B
 **Pi5 Power**:
 - 5V, 3A minimum (5A recommended for peripherals)
 - USB-C power delivery
-- Powers: Pi5 board, USB camera, ultrasonic sensors (5V)
+- Powers: Pi5 board, Camera Module 3, Grove Ultrasonic Ranger (via 3.3 V pin), LEDs, buzzer
 
 **Pi400 Power**:
 - 5V, 3A minimum
 - USB-C power delivery
 - Powers: Pi400 board only
 
-**Motor Power**:
-- Voltage per motor specification (6V or 12V typical)
-- Current: Calculate based on motor stall current (e.g., 2A per motor)
-- Separate supply from logic power (prevents voltage drops on Pi)
-
 ### Ground Connections
 
-All grounds must be connected:
 ```
-Pi5 GND ──┬── Pi400 GND
-          ├── Motor power supply GND
-          └── Motor driver GND
+Pi5 GND ───── Pi400 GND (common ground for inter-processor GPIO signals)
 ```
 
 ## Wiring Diagram (ASCII Art)
 
 ```
-┌─────────────────────────┐                  ┌─────────────────────────┐
-│   Raspberry Pi 5        │                  │   Raspberry Pi 400      │
-│   (Linux/ROS2)          │                  │   (QNX Supervisor)      │
-│                         │                  │                         │
-│  GPIO 17 (Heartbeat) ───┼──────────────────┼───> GPIO In (WDG)       │
-│  GPIO 27 (E-Stop In) <──┼──────────────────┼──── GPIO Out (E-Stop)   │
-│  GND ────────────────────┼────────┬─────────┼──── GND                 │
-│                         │        │         │                         │
-└────┬─────────┬──────────┘        │         └─────────────────────────┘
-     │         │                   │
-     │ USB     │ GPIO              │
-     │         │                   │
-  ┌──▼──┐   ┌──▼─────────────┐    │
-  │ USB │   │  HC-SR04 x3     │    │
-  │Camera   │  Ultrasonic     │    │
-  └─────┘   │  Sensors        │    │
-            └─────────────────┘    │
-                                   │
-            ┌──────────────────────▼──────┐
-            │   Motor Driver (L298N)       │
-            │   - IN1-4 from Pi5           │
-            │   - ENA/ENB PWM from Pi5     │
-            │   - ENABLE from GPIO27       │
-            └──────┬───────────┬───────────┘
-                   │           │
-               ┌───▼──┐    ┌───▼──┐
-               │Motor │    │Motor │
-               │  A   │    │  B   │
-               └──────┘    └──────┘
+┌─────────────────────────────────────┐       ┌─────────────────────────┐
+│   Raspberry Pi 5 (Linux/ROS2)       │       │   Raspberry Pi 400      │
+│                                     │       │   (QNX-inspired)        │
+│  GPIO 17 (Pin 11) ─ Green LED       │       │                         │
+│  GPIO 27 (Pin 13) ─ Yellow LED      │       │                         │
+│  GPIO 22 (Pin 15) ─ Red LED         │       │                         │
+│  GPIO 18 (Pin 12) ─ Buzzer          │       │                         │
+│  GPIO 23 (Pin 16) ─ Ultrasonic SIG  │       │                         │
+│                                     │       │                         │
+│  GPIO TBD ── Heartbeat ─────────────┼───────┼──> GPIO In (WDG)        │
+│  GPIO TBD <── E-Stop ───────────────┼───────┼─── GPIO Out (E-Stop)    │
+│  GND ───────────────────────────────┼───────┼─── GND                  │
+│                                     │       │                         │
+└──────────────────┬──────────────────┘       └─────────────────────────┘
+                   │ CSI ribbon cable
+            ┌──────▼──────────┐    ┌──────────────────────┐
+            │  Camera Module 3 │    │  Grove Ultrasonic     │
+            │  IMX708          │    │  Ranger (SIG Pin 16)  │
+            └─────────────────┘    └──────────────────────┘
 ```
+
+**Note**: Heartbeat and e-stop GPIO numbers on Pi5 are TBD — GPIO 17/27 are currently
+used for LEDs and will be reassigned to unallocated pins before M2 integration.
 
 ## Wiring Checklist
 
 Before powering on, verify:
 
-- [ ] All ground connections established (Pi5, Pi400, motor driver)
-- [ ] No direct 5V to 3.3V GPIO connections (ECHO pins have voltage dividers)
-- [ ] Heartbeat GPIO output (Pi5) connected to input (Pi400)
-- [ ] Emergency stop GPIO output (Pi400) connected to input (Pi5)
-- [ ] Motor power supply isolated from logic power supplies
-- [ ] USB camera connected to Pi5
-- [ ] All ultrasonic sensors powered and connected with correct TRIG/ECHO pins
-- [ ] Motor driver ENABLE line connected to GPIO27 (emergency stop control)
+- [ ] Common ground established between Pi5 and Pi400
+- [ ] Camera Module 3 CSI ribbon cable fully seated, correct orientation
+- [ ] Grove Ultrasonic Ranger: SIG (yellow) → GPIO 23 (Pin 16), VCC → 3.3 V, GND connected
+- [ ] LEDs: GPIO 17/27/22 → Green/Yellow/Red anodes, cathodes to GND
+- [ ] Buzzer: GPIO 18 → (+), GND → (−)
+- [ ] Heartbeat GPIO (TBD) connected to Pi400 input (deferred to M2)
+- [ ] Emergency stop GPIO (TBD) connected from Pi400 output (deferred to M2)
 - [ ] No loose wires or shorts visible
 
 ## Testing Procedure
 
 1. **Power Sequence**:
-   - Power Pi400 first (supervisor should assert emergency stop)
+   - Power Pi400 first (supervisor should assert emergency stop when implemented)
    - Power Pi5 second
-   - Power motor supply last
 
-2. **Signal Verification**:
-   - Measure heartbeat GPIO with oscilloscope (should see 10 Hz after ROS2 startup)
-   - Measure emergency stop GPIO (should be LOW until supervisor releases)
+2. **Camera Test**:
+   - Run `bash pi5_linux/scripts/camera_test.sh`
+   - Confirm IMX708 detected
 
-3. **Emergency Stop Test**:
-   - With system running in NORMAL state
-   - Manually stop heartbeat (kill health monitor process)
-   - Verify emergency stop asserted within 500 ms
-   - Verify motors disabled
+3. **Sensor Test**:
+   - Run `python3 pi5_linux/scripts/ultrasonic_test.py`
+   - Move obstacle in front of sensor at known distances, verify readings
 
-4. **Sensor Test**:
-   - Move obstacle in front of each ultrasonic sensor
-   - Verify distance readings published on ROS2 topic
-   - Check for consistent measurements
+4. **LED and Buzzer Test**:
+   - Run `python3 pi5_linux/scripts/led_test.py`
+   - Run `python3 pi5_linux/scripts/buzzer_test.py`
+
+5. **Signal Verification** (deferred to M2):
+   - Heartbeat GPIO: measure 10 Hz square wave after ROS2 startup
+   - Emergency stop GPIO: measure LOW until supervisor releases
 
 ## Maintenance Notes
 
@@ -265,14 +221,9 @@ Before powering on, verify:
 - Use cable ties to prevent strain on GPIO connections
 
 **Ultrasonic Sensor Placement**:
-- Mount sensors rigidly to prevent vibration affecting measurements
-- Angle sensors slightly downward to detect ground obstacles
-- Avoid mounting near acoustic noise sources (motors, speakers)
-
-**Motor Driver Heat Dissipation**:
-- L298N can get hot under continuous load
-- Ensure adequate ventilation
-- Consider heatsink if motors draw >1A continuous
+- Mount sensor rigidly to prevent vibration affecting measurements
+- Angle slightly downward to detect ground obstacles
+- Avoid mounting near acoustic noise sources (speakers, fans)
 
 ## Future Enhancements
 

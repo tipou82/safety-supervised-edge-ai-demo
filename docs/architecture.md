@@ -10,7 +10,7 @@ This demonstrator implements a dual-processor architecture with FFI-inspired sep
 graph TB
     subgraph Pi5["Raspberry Pi 5 - Linux/ROS2 Domain"]
         Camera[Camera AI Node<br/>YOLOv8/MobileNet]
-        Ultra[Ultrasonic Node<br/>HC-SR04]
+        Ultra[Ultrasonic Node<br/>Grove Ultrasonic Ranger]
         Decision[Decision Node<br/>Path Planning]
         Actuator[Actuator Node<br/>Motor Control]
         Health[Health Monitor<br/>Aliveness Beacon]
@@ -54,9 +54,9 @@ graph TB
 - NOT part of safety decision path (development domain)
 
 **Ultrasonic Node**
-- Reads HC-SR04 ultrasonic sensors via GPIO
+- Reads Grove Ultrasonic Ranger via GPIO 23 (single-wire SIG protocol)
 - Publishes obstacle distances on `/obstacles` topic
-- Provides redundant perception for close-range obstacles
+- Provides redundant perception for close-range obstacles (2–350 cm)
 
 **Decision Node**
 - Receives perception inputs from Camera AI and Ultrasonic nodes

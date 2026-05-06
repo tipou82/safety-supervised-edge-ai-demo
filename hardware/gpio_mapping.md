@@ -6,20 +6,15 @@
 
 | GPIO # | Physical Pin | Function | Direction | Signal Type | Node | Safety Critical |
 |--------|-------------|----------|-----------|-------------|------|-----------------|
-| GPIO 17 | Pin 11 | **NORMAL state LED** (M1.1 bring-up) / Heartbeat output (planned M2+) | Output | Digital | actuator_node / health_node | No (LED) / **YES** (heartbeat) |
-| GPIO 27 | Pin 13 | **DEGRADED state LED** (M1.1 bring-up) / Emergency stop input (planned M2+) | Output/Input | Digital | actuator_node | No (LED) / **YES** (e-stop) |
-| GPIO 22 | Pin 15 | **SAFE STATE LED** (M1.1 bring-up) / Motor A IN1 (planned M2+) | Output | Digital | actuator_node | No |
-| GPIO 18 | Pin 12 | **Buzzer** (M1.1 bring-up) / Motor A PWM ENA (planned M2+) | Output | Digital / PWM | actuator_node | No |
-| GPIO 10 | Pin 19 | Motor A IN2 | Output | Digital | actuator_node | No |
-| GPIO 9 | Pin 21 | Motor B IN3 | Output | Digital | actuator_node | No |
-| GPIO 11 | Pin 23 | Motor B IN4 | Output | Digital | actuator_node | No |
-| GPIO 12 | Pin 32 | Motor B PWM (ENB) | Output | PWM | actuator_node | No |
-| GPIO 23 | Pin 16 | Ultrasonic 1 TRIG | Output | Digital pulse | ultrasonic_node | No |
-| GPIO 24 | Pin 18 | Ultrasonic 1 ECHO | Input | Digital pulse | ultrasonic_node | No |
-| GPIO 5 | Pin 29 | Ultrasonic 2 TRIG | Output | Digital pulse | ultrasonic_node | No |
-| GPIO 6 | Pin 31 | Ultrasonic 2 ECHO | Input | Digital pulse | ultrasonic_node | No |
-| GPIO 13 | Pin 33 | Ultrasonic 3 TRIG | Output | Digital pulse | ultrasonic_node | No |
-| GPIO 19 | Pin 35 | Ultrasonic 3 ECHO | Input | Digital pulse | ultrasonic_node | No |
+| GPIO 17 | Pin 11 | **NORMAL state LED** (M1.1) / Heartbeat output (TBD M2+) | Output | Digital | health_node | No (LED) / **YES** (heartbeat) |
+| GPIO 27 | Pin 13 | **DEGRADED state LED** (M1.1) / Emergency stop input (TBD M2+) | Output/Input | Digital | actuator_node | No (LED) / **YES** (e-stop) |
+| GPIO 22 | Pin 15 | **SAFE STATE LED** | Output | Digital | actuator_node | No |
+| GPIO 18 | Pin 12 | **Buzzer** | Output | Digital | actuator_node | No |
+| GPIO 23 | Pin 16 | Grove Ultrasonic Ranger SIG (trigger + echo, single wire) | Bidirectional | Digital pulse | ultrasonic_node | No |
+| GPIO 9  | Pin 21 | Reserved — Motor B IN3 (no hardware) | — | — | actuator_node | No |
+| GPIO 10 | Pin 19 | Reserved — Motor A IN2 (no hardware) | — | — | actuator_node | No |
+| GPIO 11 | Pin 23 | Reserved — Motor B IN4 (no hardware) | — | — | actuator_node | No |
+| GPIO 12 | Pin 32 | Reserved — Motor B PWM ENB (no hardware) | — | — | actuator_node | No |
 
 ### Power and Ground Pins
 
@@ -55,11 +50,12 @@
 - **PWM Frequency**: 1 kHz (motor driver compatible)
 - **PWM Range**: 0-100% duty cycle
 
-**Ultrasonic Sensor GPIOs**
-- **TRIG (GPIO 23, 5, 13)**: 10 µs pulse to trigger measurement
-- **ECHO (GPIO 24, 6, 19)**: Input, measures pulse width (distance)
-- **Pull**: None on TRIG, pull-down on ECHO
-- **Voltage Divider**: Required on ECHO (5V → 3.3V)
+**Grove Ultrasonic Ranger SIG (GPIO 23)**
+- **Protocol**: Single-wire — GPIO 23 acts as output for trigger, then input for echo
+- **Trigger**: 10 µs HIGH pulse on GPIO 23 (output mode)
+- **Echo**: Measure HIGH duration on GPIO 23 (input mode) after trigger
+- **Voltage**: 3.3 V (sensor powered from 3.3 V pin) — no voltage divider required
+- **Range**: 2–350 cm
 
 ### Pinout Diagram (Pi5 GPIO Header)
 

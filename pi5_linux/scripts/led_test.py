@@ -5,28 +5,33 @@
 # system state logic, safety decisions, or ROS2 node behaviour.
 
 # --- Wiring assumptions (confirm before running) ---
-# GPIO 16 (Pin 36) → Green LED anode → 330 Ω resistor → GND (Pin 39)
-# GPIO 20 (Pin 38) → Yellow LED anode → 330 Ω resistor → GND (Pin 39)
-# GPIO 21 (Pin 40) → Red LED anode → 330 Ω resistor → GND (Pin 39)
-# All LEDs: common cathode side to Pi5 GND.
-# 3.3 V GPIO output — use 330 Ω current-limiting resistor on each LED.
-# Do NOT connect LED anode directly to GPIO without a resistor.
+# GPIO 17 (Pin 11) → Green LED  (NORMAL state indicator)
+# GPIO 27 (Pin 13) → Yellow LED (DEGRADED state indicator)
+# GPIO 22 (Pin 15) → Red LED    (SAFE STATE indicator)
+# Low side: all LEDs connected to GND.
+# Ensure current-limiting resistors (330 Ω recommended) are present on each LED.
+#
+# NOTE: GPIO 17 and GPIO 27 are reserved for heartbeat output and emergency stop
+# input in the target architecture (hardware/gpio_mapping.md). Their assignment
+# to LEDs is confirmed for M1.1 bring-up. The heartbeat and e-stop signals will
+# be assigned to different pins before M2 integration.
+# GPIO 22 was previously Motor A IN1 — also reassigned to Red LED here.
 
 import sys
 import time
 
-# GPIO numbers — update if wiring differs from the plan above
-GPIO_GREEN  = 16  # Pin 36
-GPIO_YELLOW = 20  # Pin 38
-GPIO_RED    = 21  # Pin 40
+# GPIO numbers — confirmed wiring for M1.1 bring-up
+GPIO_GREEN  = 17  # Pin 11 — NORMAL state indicator
+GPIO_YELLOW = 27  # Pin 13 — DEGRADED state indicator
+GPIO_RED    = 22  # Pin 15 — SAFE STATE indicator
 
 # Pi5 GPIO chip (RP1 southbridge)
 GPIO_CHIP = 4
 
 LEDS = [
-    (GPIO_GREEN,  "GREEN  (GPIO 16, Pin 36)"),
-    (GPIO_YELLOW, "YELLOW (GPIO 20, Pin 38)"),
-    (GPIO_RED,    "RED    (GPIO 21, Pin 40)"),
+    (GPIO_GREEN,  "GREEN  / NORMAL    (GPIO 17, Pin 11)"),
+    (GPIO_YELLOW, "YELLOW / DEGRADED  (GPIO 27, Pin 13)"),
+    (GPIO_RED,    "RED    / SAFE STATE (GPIO 22, Pin 15)"),
 ]
 
 
@@ -36,10 +41,11 @@ def check_wiring() -> bool:
     print(" Educational demonstrator — not ISO 26262 certified")
     print("====================================================")
     print()
-    print("Wiring assumptions:")
-    print("  GPIO 16 (Pin 36) → Green LED  → 330 Ω → GND (Pin 39)")
-    print("  GPIO 20 (Pin 38) → Yellow LED → 330 Ω → GND (Pin 39)")
-    print("  GPIO 21 (Pin 40) → Red LED    → 330 Ω → GND (Pin 39)")
+    print("Wiring (confirmed M1.1 assignment):")
+    print("  GPIO 17 (Pin 11) → Green LED  (NORMAL state indicator)")
+    print("  GPIO 27 (Pin 13) → Yellow LED (DEGRADED state indicator)")
+    print("  GPIO 22 (Pin 15) → Red LED    (SAFE STATE indicator)")
+    print("  Low side: all LEDs to GND")
     print()
     print("WARNING: Do NOT run this script if wiring is not confirmed.")
     print("         Incorrect wiring may damage GPIO pins.")

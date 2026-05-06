@@ -6,9 +6,9 @@
 
 | GPIO # | Physical Pin | Function | Direction | Signal Type | Node | Safety Critical |
 |--------|-------------|----------|-----------|-------------|------|-----------------|
-| GPIO 17 | Pin 11 | Heartbeat output | Output | Digital (10 Hz) | health_node | **YES** |
-| GPIO 27 | Pin 13 | Emergency stop input | Input | Active-low | actuator_node | **YES** |
-| GPIO 22 | Pin 15 | Motor A IN1 | Output | Digital | actuator_node | No |
+| GPIO 17 | Pin 11 | **NORMAL state LED** (M1.1 bring-up) / Heartbeat output (planned M2+) | Output | Digital | actuator_node / health_node | No (LED) / **YES** (heartbeat) |
+| GPIO 27 | Pin 13 | **DEGRADED state LED** (M1.1 bring-up) / Emergency stop input (planned M2+) | Output/Input | Digital | actuator_node | No (LED) / **YES** (e-stop) |
+| GPIO 22 | Pin 15 | **SAFE STATE LED** (M1.1 bring-up) / Motor A IN1 (planned M2+) | Output | Digital | actuator_node | No |
 | GPIO 18 | Pin 12 | Motor A PWM (ENA) | Output | PWM | actuator_node | No |
 | GPIO 10 | Pin 19 | Motor A IN2 | Output | Digital | actuator_node | No |
 | GPIO 9 | Pin 21 | Motor B IN3 | Output | Digital | actuator_node | No |

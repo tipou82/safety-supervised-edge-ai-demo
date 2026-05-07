@@ -102,13 +102,29 @@ All state transitions are evaluated by the QNX-inspired supervisor using determi
 
 ## Safety Mechanisms
 
-### 1. Watchdog Monitoring
+### 1. Q&A Watchdog Monitoring
 
-**Implementation**: GPIO-based heartbeat from Health Monitor to Watchdog Server.
+**Implementation**: I2C challenge/response protocol between Pi5 (master) and Pi400 (slave at `0x40`).
 
-**Timeout Threshold**: 500 ms (configurable based on system timing analysis).
+**Protocol**:
+1. Pi400 generates a new 32-bit random seed each cycle (register `0x00`).
+2. Pi5 reads the seed via I2C, computes `response = seed XOR 0xA5A5A5A5`, and writes it back to register `0x01`.
+3. Pi400 validates both the response value and its arrival time.
 
-**Action on Timeout**: Immediate transition to SAFE_STATE with motor disable.
+**Timing Window**:
+
+| Window zone | Time since last correct response | Pi400 action |
+|---|---|---|
+| Closed (too early) | < 50 ms | failure_counter++ |
+| Open (valid) | 50–100 ms | Validate answer |
+| Timeout (too late) | > 100 ms | failure_counter++ |
+
+**Failure Counter Rules**:
+- Correct response in open window: no increment; after **2 consecutive** correct → failure_counter -= 1 (min 0)
+- Any failure (wrong answer, too early, too late): failure_counter += 1
+- failure_counter ≥ 3 → **SAFE_STATE**: Pi400 asserts emergency stop GPIO 25 LOW and illuminates red LED
+
+**Diagnostic Advantage Over Simple GPIO Heartbeat**: A frozen or corrupted Linux process cannot generate a correct in-window response; a simple GPIO toggle could be maintained by a stuck-at oscillator with no software participation.
 
 ### 2. Plausibility Checking
 
@@ -118,21 +134,33 @@ All state transitions are evaluated by the QNX-inspired supervisor using determi
 
 **Consistency**: Detect conflicting sensor interpretations.
 
-### 3. Heartbeat Pattern Validation
+### 3. Q&A Response Validation
 
-**Not just presence**: Supervisor checks heartbeat timing consistency.
+**Not just timing**: Pi400 validates both the response value (`seed XOR 0xA5A5A5A5`) and its arrival within the open window (50–100 ms).
 
-**Jitter Tolerance**: ±20% of nominal period acceptable in NORMAL state.
+**Stuck-at detection**: A frozen Pi5 cannot compute a valid response — the process must be running and able to perform the XOR computation.
 
-**Pattern Analysis**: Detect stuck-at faults (constant high or low GPIO).
+**Window enforcement**: Responses outside the 50–100 ms window increment the failure counter regardless of answer correctness. This detects scheduling pathologies on the Pi5.
 
 ### 4. Safe State Enforcement
 
-**Hardware Override**: Supervisor has direct GPIO connection to motor enable line.
+**Hardware Override**: Pi400 asserts GPIO 25 LOW (active-low e-stop) to Pi5 GPIO 25. Pi5 actuator_node polls this at 100 Hz and disables motors within 30 ms.
+
+**Red LED**: Pi400 drives GPIO 22 HIGH through 1N4148 diode to illuminate the red LED independently of Pi5.
 
 **Independence**: Safe state mechanism does not rely on Linux kernel or ROS2.
 
-**Fail-Safe**: System defaults to safe state on power loss or supervisor fault.
+**Fail-Safe**: GPIO 25 is asserted LOW at Pi400 boot and released only after watchdog establishes NORMAL state.
+
+### 5. System State LED Indicators
+
+| LED | Colour | Driven by | Condition |
+|---|---|---|---|
+| Green | GPIO 17 (Pi5) | health_node | NORMAL state |
+| Yellow | GPIO 27 (Pi5) | health_node | DEGRADED mode (only one sensor path reliable) |
+| Red | GPIO 22 (Pi5 OR Pi400, wired-OR) | actuator_node / safe_state_ctrl | SAFE STATE |
+
+**DEGRADED definition**: Of the two sensor paths (camera AI and ultrasonic), only one is reliable. The system continues at 20% nominal velocity using ultrasonic-only obstacle avoidance.
 
 ## Fault Handling
 

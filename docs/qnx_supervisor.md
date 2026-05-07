@@ -60,11 +60,13 @@ qnx_supervisor
 
 ### Communication with Linux Domain
 
-**GPIO Heartbeat (Primary)**
-- **Signal**: GPIO pin from Pi5 to Pi400 (e.g., GPIO 17)
-- **Pattern**: 10 Hz square wave (50 ms high, 50 ms low)
-- **Detection**: Edge-triggered interrupt or polled at 1 kHz
-- **Timeout**: 500 ms (5 missed heartbeats)
+**I2C Q&A Watchdog (Primary Safety Channel)**
+- **Bus**: I2C, Pi400 as slave at address `0x40` (GPIO 2 SDA, GPIO 3 SCL)
+- **Seed register** (`0x00`): Pi400 writes a new 32-bit random seed each cycle; Pi5 reads it
+- **Response register** (`0x01`): Pi5 writes `seed XOR 0xA5A5A5A5`; Pi400 validates
+- **Window**: Response valid if it arrives 50–100 ms after last correctly acknowledged response
+- **Failure counter**: +1 for wrong answer, too early, or too late; −1 after 2 consecutive correct; ≥ 3 → SAFE_STATE
+- **Emergency stop**: Pi400 GPIO 25 (active-low) → Pi5 GPIO 25 on SAFE_STATE entry
 
 **Shared Memory (Secondary)**
 - **Implementation**: POSIX shared memory mapped between domains
@@ -95,35 +97,55 @@ The supervisor state machine runs at 10 ms cycle time with deterministic transit
 
 **Transition Logic** (simplified pseudocode):
 ```c
-void supervisor_cycle(void) {
+// Q&A watchdog state
+uint32_t current_seed;
+uint64_t last_correct_response_time_ms;
+int      failure_counter = 0;
+int      consecutive_correct = 0;
+
+void i2c_on_seed_read(void) {
+    // Pi5 has read the seed — record time for window enforcement
+    current_seed = generate_random_seed();
+    // seed is now available on register 0x00
+}
+
+void i2c_on_response_received(uint32_t response) {
     uint64_t now = get_monotonic_time_ms();
-    uint64_t last_hb = get_last_heartbeat_time_ms();
+    uint64_t elapsed = now - last_correct_response_time_ms;
+    uint32_t expected = current_seed ^ 0xA5A5A5A5U;
 
-    if ((now - last_hb) > WATCHDOG_TIMEOUT_MS) {
-        transition_to_safe_state();
-        assert_emergency_stop();
-        return;
-    }
+    bool timing_ok = (elapsed >= 50) && (elapsed <= 100);
+    bool answer_ok = (response == expected);
 
-    // Read shared state with validation
-    shared_state_t state;
-    if (!read_shared_state(&state)) {
-        // Communication fault
-        transition_to_safe_state();
-        return;
-    }
-
-    switch (state.linux_state) {
-        case LINUX_STATE_NORMAL:
-            supervisor_state = SUPERVISOR_OK;
-            break;
-        case LINUX_STATE_DEGRADED:
-            supervisor_state = SUPERVISOR_WARNING;
-            break;
-        default:
-            // Invalid state
+    if (timing_ok && answer_ok) {
+        consecutive_correct++;
+        if (consecutive_correct >= 2) {
+            if (failure_counter > 0) failure_counter--;
+            consecutive_correct = 0;
+        }
+        last_correct_response_time_ms = now;
+    } else {
+        failure_counter++;
+        consecutive_correct = 0;
+        if (failure_counter >= 3) {
             transition_to_safe_state();
-            break;
+            assert_emergency_stop();   // GPIO 25 LOW
+            assert_red_led();          // GPIO 22 HIGH
+        }
+    }
+}
+
+void supervisor_timeout_check(void) {
+    uint64_t elapsed = get_monotonic_time_ms() - last_correct_response_time_ms;
+    if (elapsed > 100) {
+        // Response window expired — no response received
+        failure_counter++;
+        consecutive_correct = 0;
+        if (failure_counter >= 3) {
+            transition_to_safe_state();
+            assert_emergency_stop();
+            assert_red_led();
+        }
     }
 }
 ```
@@ -206,9 +228,21 @@ Preliminary estimates for supervisor cycle:
 
 | Event | Latency Requirement | Measured (QNX) | Measured (Linux) |
 |-------|---------------------|----------------|------------------|
-| Heartbeat miss → Detection | <100 ms | TBD | TBD |
-| Detection → Safe state | <50 ms | TBD | TBD |
-| End-to-end (miss → stop) | <150 ms | TBD | TBD |
+| Q&A window timeout detection | ≤100 ms | TBD | TBD |
+| failure_counter increment → SAFE_STATE | <20 ms | TBD | TBD |
+| SAFE_STATE → e-stop GPIO assertion | <10 ms | TBD | TBD |
+| E-stop assertion → motor disable (Pi5) | <30 ms | TBD | TBD |
+| End-to-end (watchdog miss → motor stop) | <150 ms | TBD | TBD |
+
+**Watchdog timing parameters**:
+
+| Parameter | Value |
+|---|---|
+| Open window start | 50 ms after last correct response |
+| Open window end (timeout) | 100 ms after last correct response |
+| failure_counter increment | Any miss, wrong answer, or out-of-window response |
+| failure_counter decrement | After 2 consecutive correct responses |
+| SAFE_STATE threshold | failure_counter ≥ 3 |
 
 Measured values to be determined during integration testing.
 

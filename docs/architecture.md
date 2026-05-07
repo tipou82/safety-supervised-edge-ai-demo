@@ -33,10 +33,13 @@ graph TB
     Decision -->|CmdVel| Actuator
     Actuator -->|PWM| Motors
 
-    Health -->|Heartbeat GPIO| WDG
+    Health -->|I2C Q&A Watchdog seed/response| WDG
     Decision -->|State Info| WDG
     WDG -->|Monitor Status| SafeCtrl
-    SafeCtrl -->|Emergency Stop| Actuator
+    SafeCtrl -->|Emergency Stop GPIO 25| Actuator
+    SafeCtrl -->|Red LED GPIO 22| RedLED[Red LED SAFE STATE]
+    Health -->|Green LED GPIO 17| GreenLED[Green LED NORMAL]
+    Decision -->|Yellow LED GPIO 27| YellowLED[Yellow LED DEGRADED]
 
     style Pi5 fill:#e1f5e1
     style Pi400 fill:#ffe1e1
@@ -69,16 +72,18 @@ graph TB
 - **Critical**: Accepts emergency stop from QNX supervisor
 
 **Health Monitor**
-- Generates periodic heartbeat signal via GPIO
+- Manages I2C Q&A watchdog as I2C master (GPIO 2/3)
+- Reads seed from Pi400, computes response (`seed XOR 0xA5A5A5A5`), sends within valid window
+- Drives Green LED (GPIO 17) to indicate NORMAL state
 - Monitors ROS2 node liveness
-- Reports system state to supervisor
 
 ### QNX-Inspired Domain (Raspberry Pi 400 or Linux Fallback)
 
 **Watchdog Server**
-- Monitors heartbeat signal from Linux domain
-- Applies deterministic safety rules (timeout thresholds)
-- Triggers safe state transition on failure detection
+- Operates as I2C slave (address `0x40`, GPIO 2/3) — Q&A watchdog monitor
+- Issues seeds, validates Pi5 responses for timing (50–100 ms window) and correctness
+- Manages failure counter: +1 on bad/late/early response, −1 after 2 consecutive correct
+- Triggers SAFE_STATE when failure counter reaches 3
 
 **Safe State Controller**
 - Executes safe state (emergency brake, motor disable)
@@ -98,8 +103,9 @@ graph TB
 - Safety decisions do not depend on AI inference timing
 
 **Communication Independence**
-- Watchdog uses simple GPIO heartbeat (not complex IPC)
-- Fallback: Shared memory region with CRC checking
+- Watchdog uses I2C Q&A challenge/response (not reliant on ROS2 or shared memory)
+- Emergency stop uses direct GPIO (GPIO 25 Pi400 → GPIO 25 Pi5), independent of I2C
+- Shared memory region with CRC checking for state reporting (secondary channel)
 
 **Design Independence**
 - Safety logic designed and reviewed separately from AI perception
@@ -143,12 +149,15 @@ stateDiagram-v2
 
 ## Interface Boundaries
 
-### Linux → QNX
-- **GPIO Heartbeat**: Periodic pulse (e.g., 10 Hz)
-- **Shared State** (optional): System health enum + CRC
+### Linux → QNX (Pi5 → Pi400)
+- **I2C Q&A Watchdog** (GPIO 2/3, I2C master): Seed read + response write, 50–100 ms window
+- **Shared State** (optional): System health enum + CRC via `/dev/shm/safety_state`
 
-### QNX → Linux
-- **Emergency Stop GPIO**: Active-low signal to actuator node
+### QNX → Linux (Pi400 → Pi5)
+- **Emergency Stop GPIO 25** (active-low): Direct wire Pi400 GPIO 25 → Pi5 GPIO 25
+
+### Shared Visual Output
+- **Red LED** (wired-OR): Pi5 GPIO 22 and Pi400 GPIO 22 both drive the red LED via 1N4148 diodes; either domain can independently assert SAFE STATE indication
 
 See [interfaces.yaml](../requirements/interfaces.yaml) for detailed message specifications.
 

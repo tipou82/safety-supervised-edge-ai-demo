@@ -59,33 +59,97 @@ topics:
     safety_relevant: true
 
 ---
+# I2C Interface (Q&A Watchdog — Primary Safety Channel)
+
+i2c:
+  qa_watchdog:
+    description: Challenge/response watchdog between Pi5 (I2C master) and Pi400 (I2C slave)
+    direction: Bidirectional (Pi5 reads seed, Pi5 writes response)
+    pi5_role: I2C master
+    pi400_role: I2C slave, address 0x40
+    pi5_gpio_sda: 2  # Pin 3
+    pi5_gpio_scl: 3  # Pin 5
+    pi400_gpio_sda: 2  # Pin 3
+    pi400_gpio_scl: 3  # Pin 5
+    pull_ups: 4.7 kΩ to 3.3V on SDA and SCL (provided on Pi5/breadboard side)
+    bus_speed: 100 kHz
+    safety_critical: true
+
+    registers:
+      seed:
+        address: 0x00
+        width: 4 bytes (uint32_t)
+        written_by: Pi400 (generates new random seed each cycle)
+        read_by: Pi5
+        description: Current watchdog seed value
+
+      response:
+        address: 0x01
+        width: 4 bytes (uint32_t)
+        written_by: Pi5
+        read_by: Pi400 (validates value and timing)
+        description: Pi5-computed response to current seed
+
+    algorithm:
+      response_computation: response = seed XOR 0xA5A5A5A5
+      description: Pi5 XORs the received seed with the fixed mask to compute the response
+
+    timing:
+      window_open_ms: 50    # response must not arrive before this
+      window_close_ms: 100  # response must arrive before this (timeout)
+      target_send_ms: 70    # Pi5 should aim to send at ~70ms for margin
+
+    failure_counter:
+      increment_conditions:
+        - Response value incorrect
+        - Response arrives before open window (<50 ms)
+        - Response does not arrive before window close (>100 ms, timeout)
+      decrement_condition: 2 consecutive correct in-window responses → decrement by 1
+      safe_state_threshold: 3
+      safe_state_action: Pi400 asserts GPIO 25 LOW (e-stop) and GPIO 22 HIGH (red LED)
+
+---
 # GPIO Interfaces (Inter-Processor)
 
 gpio:
-  heartbeat:
-    direction: Linux → QNX
-    linux_gpio: TBD (GPIO 17 currently used for LED; reassignment pending M2)
-    qnx_gpio_input: TBD (based on Pi400 pinout)
-    signal_type: Digital output (Linux), edge-triggered input (QNX)
-    voltage: 3.3V logic level
-    frequency: 10 Hz
-    duty_cycle: 50%
-    pattern: Square wave (50ms high, 50ms low)
-    timeout_threshold: 500 ms
-    description: Aliveness signal from Linux Health Monitor to QNX Watchdog
-    safety_critical: true
-
   emergency_stop:
     direction: QNX → Linux
-    qnx_gpio_output: TBD
-    linux_gpio: TBD (GPIO 27 currently used for LED; reassignment pending M2)
+    qnx_gpio_output: 25  # Pi400 Pin 22
+    linux_gpio: 25       # Pi5 Pin 22
+    physical_pin_pi400: 22
+    physical_pin_pi5: 22
     signal_type: Digital output (QNX), polled input (Linux)
     voltage: 3.3V logic level
     active_state: Active-low (0V = emergency stop)
+    default_state: LOW (asserted at Pi400 boot — fail-safe)
     poll_rate: 100 Hz (Linux actuator node)
     response_time: <30 ms (from assertion to motor disable)
     description: Emergency stop command from QNX supervisor to actuator node
     safety_critical: true
+
+  red_led:
+    description: SAFE STATE red LED, driven by wired-OR from Pi5 GPIO 22 and Pi400 GPIO 22 via 1N4148 diodes
+    pi5_gpio: 22
+    pi400_gpio: 22
+    circuit: Diode-OR (1N4148 + 150 Ω per leg)
+    active_state: HIGH = LED ON
+    driven_by_pi5: actuator_node on SAFE_STATE entry
+    driven_by_pi400: safe_state_ctrl on failure_counter >= 3
+    safety_critical: false (indicator only)
+
+  green_led:
+    description: NORMAL state indicator
+    pi5_gpio: 17
+    physical_pin: 11
+    driven_by: health_node
+    active_state: HIGH = LED ON
+
+  yellow_led:
+    description: DEGRADED state indicator (one of two sensor paths degraded)
+    pi5_gpio: 27
+    physical_pin: 13
+    driven_by: health_node
+    active_state: HIGH = LED ON
 
   ultrasonic_sig:
     sensor: Grove Ultrasonic Ranger (×1, front-facing)
@@ -231,17 +295,19 @@ custom_messages:
 # Timing Constraints
 
 timing:
-  heartbeat_generation:
-    nominal_period: 100 ms
-    tolerance: ±20 ms
-    source: Linux Health Monitor
-    jitter_budget: 10 ms
+  qa_watchdog_window:
+    open_ms: 50
+    close_ms: 100
+    target_response_ms: 70
+    source: Pi5 health_node (I2C master)
+    description: Pi5 must send correct response between 50–100 ms after last acknowledged response
 
   watchdog_monitoring:
     cycle_time: 10 ms
-    timeout_threshold: 500 ms
+    window_timeout_ms: 100
+    failure_counter_threshold: 3
     detection_latency: <100 ms
-    source: QNX Watchdog Server
+    source: Pi400 QNX Watchdog Server
 
   safe_state_latency:
     detection_to_decision: <20 ms

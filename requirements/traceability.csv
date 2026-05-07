@@ -4,13 +4,14 @@ SYS-FUNC-002,Ultrasonic sensing 2-400cm,UltrasonicNode,architecture.md:Ultrasoni
 SYS-FUNC-003,Sensor fusion and conflict detection,DecisionNode,architecture.md:Decision Node,pi5_linux/ros2_ws/src/decision_node,tests/integration/test_sensor_fusion.py,TODO,Plausibility checking
 SYS-FUNC-004,Path planning and velocity commands,DecisionNode,architecture.md:Decision Node,pi5_linux/ros2_ws/src/decision_node,tests/unit/test_path_planning.py,TODO,Obstacle avoidance logic
 SYS-FUNC-005,Actuator control with emergency override,ActuatorNode,architecture.md:Actuator Node,pi5_linux/ros2_ws/src/actuator_node,tests/unit/test_actuator.py,TODO,Safety override via GPIO
-SYS-FUNC-006,Heartbeat generation at 10 Hz,HealthMonitorNode,architecture.md:Health Monitor,pi5_linux/ros2_ws/src/health_node,tests/unit/test_health_monitor.py,TODO,Safety-critical heartbeat
-SYS-FUNC-007,Watchdog monitoring with 500ms timeout,WatchdogServer,qnx_supervisor.md:Watchdog Server,pi400_qnx/qnx_wdg_server,tests/unit/test_watchdog.c,TODO,Deterministic timeout detection
+SYS-FUNC-006,I2C Q&A watchdog servicing (Pi5 master),HealthMonitorNode,architecture.md:Health Monitor,pi5_linux/ros2_ws/src/health_node,tests/unit/test_health_monitor.py,TODO,Pi5 reads seed via I2C; sends response=seed XOR 0xA5A5A5A5 in 50-100ms window
+SYS-FUNC-007,I2C Q&A watchdog monitoring (Pi400 slave),QAWatchdogServer,qnx_supervisor.md:Q&A Watchdog,pi400_supervisor/qnx_wdg_server,tests/unit/test_watchdog.c,TODO,Pi400 validates response value and timing; failure_counter >= 3 triggers SAFE_STATE
 SYS-FUNC-008,Safe state enforcement,SafeStateController,qnx_supervisor.md:Safe State Controller,pi400_qnx/safe_state_controller,tests/unit/test_safe_state.c,TODO,Emergency stop assertion
 SYS-SAFE-001,AI not in safety decision path,QNX Domain Architecture,ffi_argument.md:FFI for AI Safety,pi400_qnx/*,tests/integration/test_ai_independence.py,TODO,No AI libraries in QNX domain
 SYS-SAFE-002,Spatial independence via dual processors,System Architecture,architecture.md:Dual Processor,Deployment configuration,tests/integration/test_linux_panic.py,TODO,Fault injection test
 SYS-SAFE-003,Temporal independence with local clock,QNX Supervisor Timing,qnx_supervisor.md:Timing Analysis,pi400_qnx/qnx_wdg_server/timing.c,tests/integration/test_timing_interference.py,TODO,CPU stress test
-SYS-SAFE-004,Watchdog timeout 500ms ±10%,Watchdog Configuration,qnx_supervisor.md:Watchdog Monitoring,pi400_qnx/qnx_wdg_server/config.h,tests/unit/test_watchdog_timeout.c,TODO,Timeout threshold validation
+SYS-SAFE-004,Q&A watchdog window: 50-100ms valid window,QAWatchdogServer,qnx_supervisor.md:Timing Parameters,pi400_supervisor/qnx_wdg_server/wdg_timing.c,tests/unit/test_watchdog_window.c,TODO,Responses outside window increment failure_counter
+SYS-SAFE-004a,Q&A watchdog failure counter (threshold 3),QAWatchdogServer,qnx_supervisor.md:Failure Counter,pi400_supervisor/qnx_wdg_server/wdg_counter.c,tests/unit/test_watchdog_counter.c,TODO,Counter +1 on failure; -1 after 2 consecutive correct; SAFE_STATE at 3
 SYS-SAFE-005,CRC32 integrity check,Shared Memory Protocol,interfaces.yaml:shared_memory,pi400_qnx/qnx_wdg_server/crc.c,tests/unit/test_crc32.c,TODO,Data corruption detection
 SYS-SAFE-006,Safe state latency <150ms,End-to-End Timing,qnx_supervisor.md:Latency Requirements,pi400_qnx/safe_state_controller,tests/integration/test_e2e_latency.py,TODO,Timing measurement
 SYS-SAFE-007,State machine with 4 states,System State Machine,safety_concept.md:State Machine,pi400_qnx/qnx_wdg_server/state_machine.c,tests/unit/test_state_machine.c,TODO,State transition logic
@@ -18,14 +19,16 @@ SYS-SAFE-008,Graceful degradation management,Decision Node + Supervisor,safety_c
 SYS-PERF-001,Latency <200ms in NORMAL state,End-to-End Pipeline,architecture.md:Architecture Overview,All ROS2 nodes,tests/integration/test_e2e_performance.py,TODO,Performance benchmark
 SYS-PERF-002,Camera AI 10 fps minimum,CameraAINode,architecture.md:Camera AI Node,pi5_linux/ros2_ws/src/camera_ai_node,tests/unit/test_camera_performance.py,TODO,Throughput test
 SYS-PERF-003,Supervisor CPU <10%,QNX Supervisor,qnx_supervisor.md:WCET Analysis,pi400_qnx/qnx_wdg_server,tests/integration/test_cpu_utilization.py,TODO,Resource utilization
-SYS-IF-001,GPIO heartbeat on GPIO 17,GPIO Hardware Interface,gpio_mapping.md:Heartbeat,pi5_linux/ros2_ws/src/health_node,tests/integration/test_gpio_heartbeat.py,TODO,10 Hz square wave
-SYS-IF-002,Emergency stop GPIO active-low,GPIO Hardware Interface,gpio_mapping.md:Emergency Stop,pi5_linux/ros2_ws/src/actuator_node,tests/integration/test_emergency_stop.py,TODO,Active-low signal
+SYS-IF-001,I2C Q&A watchdog interface (GPIO 2/3),I2C Hardware Interface,gpio_mapping.md:I2C Q&A Watchdog,pi5_linux/ros2_ws/src/health_node,tests/integration/test_i2c_watchdog.py,TODO,Pi5 master / Pi400 slave 0x40; 4.7k pull-ups on SDA+SCL
+SYS-IF-002,Emergency stop GPIO 25 (Pi400→Pi5) active-low,GPIO Hardware Interface,gpio_mapping.md:Emergency Stop,pi5_linux/ros2_ws/src/actuator_node,tests/integration/test_emergency_stop.py,TODO,Pi400 GPIO 25 → Pi5 GPIO 25; active-low; default LOW at boot
+SYS-SAFE-009,State LED indicators (Green/Yellow/Red),LED Hardware Interface,gpio_mapping.md:LEDs,pi5_linux/ros2_ws/src/health_node,tests/integration/test_state_leds.py,TODO,Green=GPIO17 NORMAL; Yellow=GPIO27 DEGRADED; Red=GPIO22 wired-OR SAFE_STATE
+SYS-SAFE-010,Red LED wired-OR: Pi5 GPIO 22 / Pi400 GPIO 22,LED Circuit,wiring.md:Red LED Wired-OR,pi400_supervisor/safe_state_ctrl/led.c,tests/integration/test_red_led_independence.py,TODO,Pi400 can assert red LED independently via 1N4148 diode-OR circuit
 SYS-IF-003,Shared memory 4KB with CRC,Shared Memory Interface,interfaces.yaml:shared_memory,pi400_qnx/qnx_wdg_server/shm.c,tests/unit/test_shared_memory.c,TODO,CRC validation
 SYS-IF-004,ROS2 topics per spec,ROS2 Topic Definitions,interfaces.yaml:topics,All ROS2 nodes,tests/integration/test_ros2_topics.py,TODO,Topic compliance
 SYS-OPS-001,Startup sequence with safe default,Startup State Machine,qnx_supervisor.md:Protocol,pi400_qnx/safe_state_controller/init.c,tests/integration/test_startup.py,TODO,Emergency stop default
 SYS-OPS-002,Graceful shutdown sequence,Shutdown Procedure,qnx_supervisor.md:Protocol,pi5_linux/scripts/shutdown.sh,tests/integration/test_shutdown.py,TODO,Heartbeat stop
 SYS-OPS-003,Manual reset required from safe state,Safe State Exit Logic,safety_concept.md:SAFE_STATE,pi400_qnx/safe_state_controller,tests/integration/test_manual_reset.py,TODO,No auto-recovery
-FSR-001,Watchdog monitoring implementation,WatchdogServer,safety_requirements.md:FSR-001,pi400_qnx/qnx_wdg_server,tests/fault_injection/fi_heartbeat_stop.py,TODO,Fault injection test
+FSR-001,I2C Q&A watchdog monitoring implementation,QAWatchdogServer,safety_requirements.md:FSR-001,pi400_supervisor/qnx_wdg_server,tests/fault_injection/fi_wdg_i2c_stop.py,TODO,FI: stop I2C response; wrong answer; too-early response; verify failure_counter and SAFE_STATE
 FSR-002,Safe state transition timing,SafeStateController,safety_requirements.md:FSR-002,pi400_qnx/safe_state_controller,tests/fault_injection/fi_latency_measurement.py,TODO,150ms budget verification
 FSR-003,Deterministic safety logic,QNX Supervisor Code,safety_requirements.md:FSR-003,pi400_qnx/*,tests/unit/test_determinism.c,TODO,No AI in safety path
 FSR-004,Spatial isolation architecture,Deployment,safety_requirements.md:FSR-004,Deployment configuration,tests/fault_injection/fi_linux_panic.py,TODO,Memory corruption isolation

@@ -279,42 +279,42 @@ Maps key safety requirements to implementing components and verification methods
 requirementDiagram
 
     requirement SYS_SAFE_007 {
-        id: SYS-SAFE-007
+        id: SYS_SAFE_007
         text: State machine with 5 states INIT NORMAL WARNING DEGRADED SAFE_STATE
         risk: High
         verifymethod: Test
     }
 
     requirement SYS_SAFE_004 {
-        id: SYS-SAFE-004
+        id: SYS_SAFE_004
         text: QA watchdog valid response window 50 to 100ms
         risk: High
         verifymethod: Test
     }
 
     requirement SYS_SAFE_004a {
-        id: SYS-SAFE-004a
+        id: SYS_SAFE_004a
         text: failure counter threshold 3 triggers SAFE STATE
         risk: High
         verifymethod: Test
     }
 
     requirement SYS_SAFE_006 {
-        id: SYS-SAFE-006
+        id: SYS_SAFE_006
         text: Safe state latency less than 150ms from fault to motor disable
         risk: High
         verifymethod: Measurement
     }
 
     requirement SYS_SAFE_010 {
-        id: SYS-SAFE-010
+        id: SYS_SAFE_010
         text: Red LED assertable independently by Pi5 and Pi400
         risk: Medium
         verifymethod: Inspection
     }
 
     requirement SYS_SAFE_001 {
-        id: SYS-SAFE-001
+        id: SYS_SAFE_001
         text: AI inference shall not influence runtime safety decisions
         risk: High
         verifymethod: Analysis

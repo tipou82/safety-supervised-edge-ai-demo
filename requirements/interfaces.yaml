@@ -98,9 +98,10 @@ i2c:
       description: Pi5 XORs the received seed with the fixed mask to compute the response
 
     timing:
-      window_open_ms: 50    # response must not arrive before this
-      window_close_ms: 100  # response must arrive before this (timeout)
-      target_send_ms: 70    # Pi5 should aim to send at ~70ms for margin
+      window_total_ms: 50   # total window length
+      window_open_ms: 15    # closed window — response before this → too early
+      window_close_ms: 50   # window timeout — response after this → missed
+      target_send_ms: 20    # Pi5 health_node 20ms cycle fires at ~20ms (in open window)
 
     failure_counter:
       increment_conditions:
@@ -311,6 +312,17 @@ timing:
     failure_counter_threshold: 3
     detection_latency: <100 ms
     source: Pi400 QNX Watchdog Server
+
+  watchdog_ftti:
+    requirement: SYS-SAFE-006
+    window_ms: 50
+    fail_threshold: 3
+    detection_ms: 150      # 3 × 50ms
+    gpio_overhead_ms: 20
+    poll_overhead_ms: 10
+    motor_disable_ms: 30
+    total_worst_case_ms: 210
+    note: Updated from 150ms — 50ms window × 3 failures + GPIO + poll + motor
 
   proximity_ftti:
     requirement: SYS-SAFE-011

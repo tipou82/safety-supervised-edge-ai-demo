@@ -13,6 +13,7 @@
 
 import json
 import socket
+import struct
 import threading
 import time
 
@@ -20,13 +21,15 @@ import lgpio
 import rclpy
 from rclpy.node import Node
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
+from sensor_msgs.msg import Range
 from std_msgs.msg import String, Int32
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 PI400_IP        = '192.168.50.20'
 WDG_PORT        = 9001
 RESP_MASK       = 0xA5A5A5A5
-TARGET_SEND_MS  = 70.0   # aim for 70ms — middle of 50–100ms window
+WINDOW_OPEN_MS  = 15.0   # closed window end — must not respond before this
+WINDOW_CLOSE_MS = 50.0   # window timeout — response must arrive before this
 
 
 class _WatchdogUDPThread:
@@ -39,6 +42,7 @@ class _WatchdogUDPThread:
 
         self._failure_counter: int  = 0
         self._wdg_ok: bool          = False
+        self._flow_ok: bool         = False   # set by ROS2 node flow monitor
         self._attempts: int         = 0
         self._responses_sent: int   = 0
         self._running: bool         = True
@@ -51,29 +55,40 @@ class _WatchdogUDPThread:
         self._thread = threading.Thread(target=self._run, daemon=True, name='wdg_udp')
         self._thread.start()
 
+    @staticmethod
+    def _crc16(data: bytes) -> int:
+        crc = 0xFFFF
+        for b in data:
+            crc ^= b << 8
+            for _ in range(8):
+                crc = ((crc << 1) ^ 0x1021) if (crc & 0x8000) else (crc << 1)
+        return crc & 0xFFFF
+
     def _run(self) -> None:
+        pending_seed = None
+        pending_seq  = None
+        seed_recv_t  = None
+
         while self._running:
             try:
-                data, _ = self._sock.recvfrom(256)
-                msg = json.loads(data.decode())
+                data, _ = self._sock.recvfrom(512)
+                msg   = json.loads(data.decode())
                 mtype = msg.get('type')
 
                 if mtype == 'seed':
+                    seed    = msg['seed']
+                    seq     = msg.get('seq', 0)
+                    rx_crc  = msg.get('crc', -1)
+
+                    # Validate incoming seed CRC
+                    payload = struct.pack('>IB', seed, seq & 0xFF)
+                    if rx_crc != self._crc16(payload):
+                        continue  # discard malformed seed
+
+                    pending_seed = seed
+                    pending_seq  = seq
+                    seed_recv_t  = time.monotonic()
                     self._attempts += 1
-                    recv_time = time.monotonic()
-                    seed      = msg['seed']
-                    response  = (seed ^ RESP_MASK) & 0xFFFFFFFF
-
-                    # Wait until TARGET_SEND_MS after receiving seed
-                    elapsed_ms = (time.monotonic() - recv_time) * 1000.0
-                    remaining  = TARGET_SEND_MS - elapsed_ms
-                    if remaining > 0:
-                        time.sleep(remaining / 1000.0)
-
-                    pkt = json.dumps({'type': 'response', 'seed': seed,
-                                      'response': response}).encode()
-                    self._sock.sendto(pkt, (self._ip, self._port))
-                    self._responses_sent += 1
 
                 elif mtype == 'status':
                     with self._lock:
@@ -83,8 +98,44 @@ class _WatchdogUDPThread:
 
             except socket.timeout:
                 pass
-            except (json.JSONDecodeError, KeyError, OSError):
+            except (json.JSONDecodeError, KeyError, struct.error, OSError):
                 pass
+
+            # ── Send response if seed is pending and window is open ───────────
+            if pending_seed is not None and seed_recv_t is not None:
+                elapsed_ms = (time.monotonic() - seed_recv_t) * 1000.0
+
+                if elapsed_ms >= WINDOW_OPEN_MS:
+                    if elapsed_ms < WINDOW_CLOSE_MS:
+                        # Flow check gate — only send if pipeline is healthy
+                        if self._flow_ok:
+                            response = (pending_seed ^ RESP_MASK) & 0xFFFFFFFF
+                            resp_payload = struct.pack('>IBI',
+                                pending_seed, pending_seq & 0xFF,
+                                response & 0xFFFFFFFF)
+                            crc = self._crc16(resp_payload)
+                            pkt = json.dumps({
+                                'type':     'response',
+                                'seed':     pending_seed,
+                                'response': response,
+                                'seq':      pending_seq,
+                                'crc':      crc,
+                            }).encode()
+                            self._sock.sendto(pkt, (self._ip, self._port))
+                            self._responses_sent += 1
+                        # Clear pending regardless (only one response per seed)
+                        pending_seed = None
+                        pending_seq  = None
+                        seed_recv_t  = None
+                    else:
+                        # Window expired without sending — clear
+                        pending_seed = None
+                        pending_seq  = None
+                        seed_recv_t  = None
+
+    def set_flow_ok(self, ok: bool) -> None:
+        with self._lock:
+            self._flow_ok = ok
 
     @property
     def failure_counter(self) -> int:
@@ -134,7 +185,14 @@ class HealthNode(Node):
         self.get_logger().info(
             f'UDP Q&A watchdog client started — Pi400 {PI400_IP}:{WDG_PORT}')
 
-        self._system_state: str = 'INIT'
+        self._system_state: str  = 'INIT'
+
+        # Flow monitor state — tracks liveness of safety-critical nodes
+        self._last_system_state_t: float = time.monotonic()   # decision_node
+        self._last_obstacles_t: float    = time.monotonic()   # ultrasonic_node
+        # Deadlines: 3× nominal period for tolerance
+        self._SYSTEM_STATE_DEADLINE_S = 0.060   # decision_node 20ms × 3
+        self._OBSTACLES_DEADLINE_S    = 0.150   # ultrasonic_node 50ms × 3
 
         # Publishers
         self._health_pub   = self.create_publisher(DiagnosticArray, '/system_health', 5)
@@ -142,17 +200,38 @@ class HealthNode(Node):
 
         # Timers
         self.create_timer(1.0,   self._publish_health)
-        self.create_timer(0.1,   self._publish_wdg_counter)  # 10 Hz
+        self.create_timer(0.1,   self._publish_wdg_counter)   # 10 Hz
+        self.create_timer(0.020, self._flow_check_tick)        # 20 Hz — WDG gate
 
         # Subscriptions
         self.create_subscription(String, '/system_state', self._on_system_state, 5)
+        self.create_subscription(Range, '/obstacles', self._on_obstacles, 5)
 
         self.get_logger().info(
             'health_node M5 started — UDP Q&A watchdog, target 70ms window')
 
+    # ── Flow monitor — WDG gate ───────────────────────────────────────────────
+
+    def _on_obstacles(self, msg) -> None:
+        self._last_obstacles_t = time.monotonic()
+
+    def _flow_check_tick(self) -> None:
+        """20 Hz — evaluate flow check and update WDG gate."""
+        now = time.monotonic()
+        decision_ok   = (now - self._last_system_state_t) < self._SYSTEM_STATE_DEADLINE_S
+        ultrasonic_ok = (now - self._last_obstacles_t)    < self._OBSTACLES_DEADLINE_S
+        flow_ok = decision_ok and ultrasonic_ok
+        self._wdg.set_flow_ok(flow_ok)
+
+        if not flow_ok:
+            self.get_logger().warn(
+                f'Flow check FAIL — decision={decision_ok} ultrasonic={ultrasonic_ok}'
+                ' — WDG response withheld')
+
     # ── LED control ───────────────────────────────────────────────────────────
 
     def _on_system_state(self, msg: String) -> None:
+        self._last_system_state_t = time.monotonic()
         self._system_state = msg.data
         green  = (msg.data != 'SAFE_STATE')
         yellow = (msg.data == 'DEGRADED')
@@ -176,13 +255,20 @@ class HealthNode(Node):
         s.level   = DiagnosticStatus.OK if self._wdg.ok else DiagnosticStatus.WARN
         s.message = ('watchdog OK' if self._wdg.ok
                      else f'watchdog WARN — failure_counter={self._wdg.failure_counter}')
+        now = time.monotonic()
+        decision_ok   = (now - self._last_system_state_t) < self._SYSTEM_STATE_DEADLINE_S
+        ultrasonic_ok = (now - self._last_obstacles_t)    < self._OBSTACLES_DEADLINE_S
         s.values = [
-            KeyValue(key='transport',        value='UDP'),
-            KeyValue(key='pi400_ip',         value=PI400_IP),
-            KeyValue(key='wdg_ok',           value=str(self._wdg.ok)),
-            KeyValue(key='failure_counter',  value=str(self._wdg.failure_counter)),
-            KeyValue(key='seeds_received',   value=str(self._wdg.attempts)),
-            KeyValue(key='responses_sent',   value=str(self._wdg.responses_sent)),
+            KeyValue(key='transport',          value='UDP'),
+            KeyValue(key='pi400_ip',           value=PI400_IP),
+            KeyValue(key='wdg_ok',             value=str(self._wdg.ok)),
+            KeyValue(key='failure_counter',    value=str(self._wdg.failure_counter)),
+            KeyValue(key='seeds_received',     value=str(self._wdg.attempts)),
+            KeyValue(key='responses_sent',     value=str(self._wdg.responses_sent)),
+            KeyValue(key='flow_decision_ok',   value=str(decision_ok)),
+            KeyValue(key='flow_ultrasonic_ok', value=str(ultrasonic_ok)),
+            KeyValue(key='window_open_ms',     value=str(WINDOW_OPEN_MS)),
+            KeyValue(key='window_close_ms',    value=str(WINDOW_CLOSE_MS)),
         ]
         msg.status.append(s)
         self._health_pub.publish(msg)

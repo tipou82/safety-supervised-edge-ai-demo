@@ -1,20 +1,22 @@
 #!/usr/bin/env python3
 # qnx_wdg_server.py — Pi400 Q&A watchdog server and safe-state controller.
-# M5: DD-002 Option B — UDP transport over dedicated Ethernet (192.168.50.x).
+# M5/M7: DD-002 Option B — UDP transport over dedicated Ethernet (192.168.50.x).
 #
-# Responsibilities:
-#   - Assert GPIO 25 LOW (e-stop to Pi5) and GPIO 22 HIGH (red LED) at boot
-#   - Send 32-bit random seeds to Pi5 every watchdog cycle (~100ms)
-#   - Validate Pi5 responses: timing (50–100ms) AND value (seed XOR 0xA5A5A5A5)
-#   - Manage failure counter: +1 on miss/wrong/early, -1 after 2 consecutive correct
-#   - Release GPIO 25 HIGH after first valid Q&A cycle
-#   - Assert SAFE_STATE (GPIO 25 LOW + GPIO 22 HIGH) when failure_counter >= 3
-#   - Broadcast status to Pi5 each cycle
+# Watchdog window (50ms total):
+#   t=0        Seed sent to Pi5
+#   t=0–15ms   Closed window  — response too early → failure_counter++
+#   t=15–50ms  Open window    — valid response window
+#   t=50ms     Timeout        — no response → failure_counter++
+#   New cycle starts immediately after response or timeout.
 #
-# Protocol (UDP port 9001, both boards):
-#   Pi400 → Pi5: {"type": "seed",   "seed": <uint32>, "ts": <float>}
-#   Pi5   → Pi400: {"type": "response", "seed": <uint32>, "response": <uint32>}
-#   Pi400 → Pi5: {"type": "status", "failure_counter": <int>, "state": <str>}
+# Failure counter: +1 on early/late/wrong; −1 after 2 consecutive correct; ≥3 → SAFE_STATE
+# SAFE_STATE latency: 3 × 50ms + GPIO + poll = ~200ms (SYS-SAFE-006 updated).
+#
+# Protocol (UDP port 9001):
+#   Pi400 → Pi5: {"type": "seed",     "seed": <uint32>, "seq": <uint8>, "crc": <uint16>}
+#   Pi5   → Pi400: {"type": "response", "seed": <uint32>, "response": <uint32>,
+#                                        "seq": <uint8>,  "crc": <uint16>}
+#   Pi400 → Pi5: {"type": "status",   "failure_counter": <int>, "state": <str>}
 #
 # Pi400 GPIO (BCM2711, gpiochip0):
 #   GPIO 25 (Pin 22): e-stop output, active-low → Pi5 GPIO 25
@@ -25,6 +27,7 @@
 import json
 import random
 import socket
+import struct
 import time
 import lgpio
 
@@ -34,79 +37,104 @@ WDG_PORT = 9001
 
 # ── Protocol ──────────────────────────────────────────────────────────────────
 RESP_MASK       = 0xA5A5A5A5
-WINDOW_OPEN_MS  = 50.0
-WINDOW_CLOSE_MS = 100.0
+WINDOW_OPEN_MS  = 15.0    # closed window end  — response before this → too early
+WINDOW_CLOSE_MS = 50.0    # window timeout     — response after this → missed
 FAIL_THRESHOLD  = 3
-CYCLE_MS        = 110.0   # cycle slightly longer than window to avoid overlap
 
 # ── GPIO (Pi400 BCM2711, gpiochip0) ──────────────────────────────────────────
 GPIO_CHIP  = 0
-GPIO_ESTOP = 25   # active-low output → Pi5 GPIO 25
-GPIO_LED   = 22   # red LED (wired-OR via 1N4148 to red LED anode)
+GPIO_ESTOP = 25
+GPIO_LED   = 22
+
+
+def crc16(data: bytes) -> int:
+    """CRC-16/CCITT-FALSE over data bytes."""
+    crc = 0xFFFF
+    for b in data:
+        crc ^= b << 8
+        for _ in range(8):
+            crc = ((crc << 1) ^ 0x1021) if (crc & 0x8000) else (crc << 1)
+    return crc & 0xFFFF
+
+
+def make_seed_packet(seed: int, seq: int) -> bytes:
+    payload = struct.pack('>IB', seed, seq)  # seed(4) + seq(1)
+    crc = crc16(payload)
+    return json.dumps({
+        'type': 'seed', 'seed': seed, 'seq': seq, 'crc': crc
+    }).encode()
 
 
 def main() -> None:
     print("======================================================")
-    print(" Pi400 Q&A Watchdog Server — M5")
-    print(" UDP transport, DD-002 Option B")
+    print(" Pi400 Q&A Watchdog Server — M7")
+    print(" Window: 50ms (15ms closed + 35ms open)")
     print(" Educational demonstrator — not ISO 26262 certified")
     print("======================================================")
     print()
 
-    # ── GPIO — assert safe state at boot (fail-safe default) ─────────────────
     gpio = lgpio.gpiochip_open(GPIO_CHIP)
-    lgpio.gpio_claim_output(gpio, GPIO_ESTOP, 0)  # LOW  = e-stop asserted
+    lgpio.gpio_claim_output(gpio, GPIO_ESTOP, 0)  # LOW = e-stop asserted
     lgpio.gpio_claim_output(gpio, GPIO_LED,   1)  # HIGH = red LED ON
-    print(f"[BOOT] GPIO {GPIO_ESTOP} LOW (e-stop asserted)")
-    print(f"[BOOT] GPIO {GPIO_LED} HIGH (red LED ON)")
-    print()
+    print(f"[BOOT] GPIO {GPIO_ESTOP} LOW (e-stop), GPIO {GPIO_LED} HIGH (red LED)")
 
-    # ── UDP socket ────────────────────────────────────────────────────────────
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.bind(('0.0.0.0', WDG_PORT))
-    # Receive timeout = close of window + margin to handle late packets
-    sock.settimeout((WINDOW_CLOSE_MS + 20.0) / 1000.0)
-    print(f"[INIT] UDP port {WDG_PORT}  Pi5 target: {PI5_IP}:{WDG_PORT}")
-    print()
+    sock.settimeout((WINDOW_CLOSE_MS + 5.0) / 1000.0)  # 55ms receive timeout
 
-    failure_counter    = 0
-    consecutive_ok     = 0
-    released           = False   # has GPIO 25 been released yet?
-    cycle              = 0
+    failure_counter  = 0
+    consecutive_ok   = 0
+    released         = False
+    seq              = 0
+    cycle            = 0
+
+    print(f"[INIT] Listening on UDP {WDG_PORT}, Pi5: {PI5_IP}")
+    print()
 
     try:
         while True:
             cycle += 1
+            seq = (seq + 1) & 0xFF
             cycle_start = time.monotonic()
 
-            # ── Generate and send seed ────────────────────────────────────────
             seed     = random.getrandbits(32)
             expected = (seed ^ RESP_MASK) & 0xFFFFFFFF
-            seed_pkt = json.dumps({'type': 'seed', 'seed': seed,
-                                   'ts': cycle_start}).encode()
-            sock.sendto(seed_pkt, (PI5_IP, WDG_PORT))
+            expected_crc_payload = struct.pack('>IBI', seed, seq, expected)
+
+            sock.sendto(make_seed_packet(seed, seq), (PI5_IP, WDG_PORT))
 
             # ── Wait for response ─────────────────────────────────────────────
             response_ok = False
             fail_reason = 'timeout'
 
             try:
-                data, _addr = sock.recvfrom(256)
-                elapsed_ms  = (time.monotonic() - cycle_start) * 1000.0
-                msg         = json.loads(data.decode())
+                data, _ = sock.recvfrom(512)
+                elapsed_ms = (time.monotonic() - cycle_start) * 1000.0
+                msg = json.loads(data.decode())
 
                 if msg.get('type') == 'response' and msg.get('seed') == seed:
-                    answer    = msg.get('response', -1)
+                    answer   = msg.get('response', -1)
+                    resp_seq = msg.get('seq', -1)
+                    resp_crc = msg.get('crc', -1)
+
+                    # Validate CRC over response payload
+                    resp_payload = struct.pack('>IBI', seed, resp_seq & 0xFF, answer & 0xFFFFFFFF)
+                    crc_ok    = (resp_crc == crc16(resp_payload))
+                    seq_ok    = (resp_seq == seq)
                     timing_ok = WINDOW_OPEN_MS <= elapsed_ms <= WINDOW_CLOSE_MS
                     answer_ok = (answer == expected)
 
-                    if timing_ok and answer_ok:
+                    if timing_ok and answer_ok and seq_ok and crc_ok:
                         response_ok = True
                     elif elapsed_ms < WINDOW_OPEN_MS:
                         fail_reason = 'too_early'
                     elif not answer_ok:
                         fail_reason = 'wrong_answer'
+                    elif not seq_ok:
+                        fail_reason = f'seq_mismatch(got {resp_seq} want {seq})'
+                    elif not crc_ok:
+                        fail_reason = 'crc_error'
                     else:
                         fail_reason = 'timeout'
 
@@ -121,51 +149,43 @@ def main() -> None:
                 if consecutive_ok >= 2 and failure_counter > 0:
                     failure_counter -= 1
                     consecutive_ok  = 0
-                    print(f"[#{cycle:04d}] OK ×2 → counter={failure_counter}")
-                else:
-                    if cycle % 10 == 0:   # log every 10 cycles to reduce noise
-                        print(f"[#{cycle:04d}] OK  counter={failure_counter}  "
-                              f"consec={consecutive_ok}")
+                    print(f"[#{cycle:04d}] OK×2 → counter={failure_counter}")
+                elif cycle % 20 == 0:
+                    print(f"[#{cycle:04d}] OK  counter={failure_counter} seq={seq}")
             else:
                 failure_counter = min(failure_counter + 1, FAIL_THRESHOLD)
                 consecutive_ok  = 0
                 print(f"[#{cycle:04d}] FAIL ({fail_reason}) → counter={failure_counter}")
 
-            # ── Safe state / release logic ────────────────────────────────────
+            # ── Safe state / release ──────────────────────────────────────────
             in_safe = failure_counter >= FAIL_THRESHOLD
 
             if in_safe:
                 lgpio.gpio_write(gpio, GPIO_ESTOP, 0)
                 lgpio.gpio_write(gpio, GPIO_LED,   1)
                 if released:
-                    print(f"[SAFE] counter={failure_counter} → GPIO 25 LOW, red LED ON")
+                    print(f"[SAFE] counter={failure_counter} → e-stop asserted")
                     released = False
-
             elif not released and response_ok:
-                lgpio.gpio_write(gpio, GPIO_ESTOP, 1)  # release e-stop
-                lgpio.gpio_write(gpio, GPIO_LED,   0)  # red LED OFF
+                lgpio.gpio_write(gpio, GPIO_ESTOP, 1)
+                lgpio.gpio_write(gpio, GPIO_LED,   0)
                 released = True
-                print("[RELEASE] First valid Q&A → GPIO 25 HIGH, red LED OFF → NORMAL")
+                print("[RELEASE] First valid Q&A → GPIO 25 HIGH, red LED OFF")
 
-            # ── Send status to Pi5 ────────────────────────────────────────────
-            status_pkt = json.dumps({
+            # ── Status to Pi5 ─────────────────────────────────────────────────
+            status = json.dumps({
                 'type':            'status',
                 'failure_counter': failure_counter,
                 'state':           'SAFE_STATE' if in_safe else 'NORMAL',
                 'released':        released,
                 'cycle':           cycle,
             }).encode()
-            sock.sendto(status_pkt, (PI5_IP, WDG_PORT))
+            sock.sendto(status, (PI5_IP, WDG_PORT))
 
-            # ── Pace cycle ────────────────────────────────────────────────────
-            elapsed = (time.monotonic() - cycle_start) * 1000.0
-            sleep_ms = CYCLE_MS - elapsed
-            if sleep_ms > 0:
-                time.sleep(sleep_ms / 1000.0)
+            # No fixed cycle sleep — next cycle starts immediately
 
     except KeyboardInterrupt:
-        print("\n[STOP] KeyboardInterrupt — asserting e-stop (fail-safe).")
-
+        print("\n[STOP] Asserting e-stop.")
     finally:
         lgpio.gpio_write(gpio, GPIO_ESTOP, 0)
         lgpio.gpio_write(gpio, GPIO_LED,   1)
@@ -173,7 +193,6 @@ def main() -> None:
         lgpio.gpio_free(gpio, GPIO_LED)
         lgpio.gpiochip_close(gpio)
         sock.close()
-        print("[STOP] GPIO 25 LOW, red LED ON. Exited cleanly.")
 
 
 if __name__ == '__main__':

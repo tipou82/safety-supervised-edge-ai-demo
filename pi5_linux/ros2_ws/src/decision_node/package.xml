@@ -14,6 +14,7 @@
   <depend>geometry_msgs</depend>
   <depend>diagnostic_msgs</depend>
   <depend>std_msgs</depend>
+  <!-- std_msgs/Int32 for /watchdog_failure_counter from health_node -->
 
   <test_depend>ament_cmake_gtest</test_depend>
   <test_depend>ament_lint_auto</test_depend>

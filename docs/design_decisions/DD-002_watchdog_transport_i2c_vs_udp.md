@@ -228,16 +228,25 @@ which is a known gap from the production pattern.
 ## 8. Decision
 
 **Decision**: ☐ Option A — I2C BSC slave (GPIO 18/19, re-wiring)
-            ☐ Option B — UDP over dedicated Ethernet
+            ☑ **Option B — UDP over dedicated Ethernet**
             ☐ Option C — UART/serial
-            ☐ Other (specify)
 
-**Notes / conditions**:
+**Notes**:
+Option A was attempted. `pigpio`'s `bsc_i2c()` does not support BCM2711
+(Raspberry Pi 4/400) — the BSC slave peripheral exists on BCM2711 but at a
+different register base address than BCM2835 (Pi 1–3). `i2cdetect` showed
+no slave at 0x40 after BSC configuration. Option A is not achievable on
+Pi400 without a custom kernel driver.
 
-_To be filled in by engineer before implementation begins._
+Option B (UDP over dedicated Ethernet 192.168.50.x) is adopted:
+- Q&A protocol logic (seed/response/window/failure counter) unchanged
+- GPIO 25 and GPIO 22 remain hardware outputs on Pi400
+- I2C wires (GPIO 2/3) are no longer needed — disconnected
+- FFI limitation documented: watchdog channel relies on Linux network stack;
+  weaker than hardware I2C but acceptable for educational demonstrator
 
 **Decided by**: Yunpeng
-**Decision date**: ___________
+**Decision date**: 2026-05-09
 
 ---
 

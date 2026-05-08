@@ -9,6 +9,7 @@
 #include "diagnostic_msgs/msg/key_value.hpp"
 #include "std_msgs/msg/bool.hpp"
 #include "std_msgs/msg/string.hpp"
+#include "std_msgs/msg/int32.hpp"
 
 #include "decision_node/state_evaluator.hpp"
 
@@ -52,6 +53,12 @@ public:
             "/reset", 1,
             [this](std_msgs::msg::Bool::SharedPtr msg) {
                 if (msg->data) pending_reset_ = true;
+            });
+
+        wdg_sub_ = create_subscription<std_msgs::msg::Int32>(
+            "/watchdog_failure_counter", 5,
+            [this](std_msgs::msg::Int32::SharedPtr msg) {
+                watchdog_failure_counter_ = msg->data;
             });
 
         // /detections liveness — placeholder subscription (M3+).
@@ -120,7 +127,7 @@ private:
         input.previous_state           = current_state_;
         input.manual_reset_requested   = pending_reset_;
         input.system_ready             = system_ready_;
-        input.watchdog_failure_counter = 0;   // TODO M5: subscribe to Pi400 counter
+        input.watchdog_failure_counter = watchdog_failure_counter_;
         input.ultrasonic_valid         = ultrasonic_valid_;
         input.distance_m               = distance_m_;
         input.camera_valid             = camera_valid_;
@@ -200,8 +207,9 @@ private:
     bool   system_ready_     = false;
     bool   ultrasonic_valid_ = false;
     float  distance_m_       = 9.9f;
-    bool   camera_valid_     = false;
-    bool   pending_reset_    = false;
+    bool   camera_valid_              = false;
+    bool   pending_reset_             = false;
+    int    watchdog_failure_counter_  = 0;
 
     rclcpp::Time last_obstacle_time_{0, 0, RCL_ROS_TIME};
     rclcpp::Time last_detection_time_{0, 0, RCL_ROS_TIME};
@@ -212,6 +220,7 @@ private:
     rclcpp::Subscription<sensor_msgs::msg::Range>::SharedPtr   obstacles_sub_;
     rclcpp::Subscription<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr health_sub_;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr       reset_sub_;
+    rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr      wdg_sub_;
     rclcpp::Subscription<std_msgs::msg::String>::SharedPtr     detections_sub_;
     rclcpp::TimerBase::SharedPtr                               timer_;
 };

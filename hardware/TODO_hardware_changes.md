@@ -66,12 +66,18 @@ Change to a diode-OR circuit so both Pi5 and Pi400 can independently assert it.
 
 ---
 
+## M5 Update: I2C wires no longer required for watchdog
+
+DD-002 Option B selected (UDP over Ethernet). BCM2711 BSC slave not
+supported by pigpio. The I2C wires (GPIO 2/3) can be removed.
+GPIO 25 (e-stop) and GPIO 22 (red LED) wires remain in place.
+
 ## Summary Checklist
 
-- [ ] I2C SDA wire: Pi5 Pin 3 ↔ Pi400 Pin 3
-- [ ] I2C SCL wire: Pi5 Pin 5 ↔ Pi400 Pin 5
-- [ ] 4.7 kΩ pull-up on SDA to 3.3V
-- [ ] 4.7 kΩ pull-up on SCL to 3.3V
+- [x] ~~I2C SDA wire: Pi5 Pin 3 ↔ Pi400 Pin 3~~ — removed (UDP replaces I2C for watchdog)
+- [x] ~~I2C SCL wire: Pi5 Pin 5 ↔ Pi400 Pin 5~~ — removed
+- [x] ~~4.7 kΩ pull-up on SDA to 3.3V~~ — removed
+- [x] ~~4.7 kΩ pull-up on SCL to 3.3V~~ — removed
 - [ ] Common GND wire confirmed (Pi5 Pin 6 ↔ Pi400 Pin 6)
 - [ ] E-stop wire: Pi400 GPIO 25 (Pin 22) → Pi5 GPIO 25 (Pin 22)
 - [ ] Red LED: remove old 330 Ω resistor

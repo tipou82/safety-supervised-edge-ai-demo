@@ -56,23 +56,26 @@ Per ISO 26262-6:2018 Clause 7.4.7, FFI ensures that a lower-ASIL or non-safety e
 
 ### 3. Communication Independence
 
-**Measure**: Simple, validated communication protocol with error detection.
+**Measure**: Dedicated out-of-band communication channel independent of ROS2/DDS.
 
-**Implementation**:
-- **Primary**: GPIO heartbeat (binary signal, edge-triggered)
-- **Secondary**: Shared memory with CRC32 validation
-- Supervisor validates data integrity before use
-- Invalid data treated as communication fault → SAFE_STATE
+**Implementation (M5, DD-002 Option B)**:
+- **Primary watchdog**: UDP Q&A over dedicated Ethernet (192.168.50.x) — independent of ROS2
+- **Hardware safety output**: GPIO 25 (Pi400 → Pi5, active-low e-stop) — hardwired
+- **Visual indicator**: GPIO 22 (Pi400, red LED via diode-OR) — independent of Pi5
+- ROS2/DDS middleware faults on Pi5 cannot affect the UDP watchdog or GPIO e-stop
 
 **Interference Prevention**:
-- Corrupted ROS2 messages do not reach supervisor (different communication path)
-- DDS middleware faults isolated to Linux domain
-- Bit flips in shared memory detected by CRC check
+- Corrupted or flooded ROS2 topics do not affect the UDP watchdog (separate socket)
+- DDS middleware crash on Pi5 does not prevent Pi400 from asserting e-stop
+- GPIO 25 e-stop is a direct hardware wire — no software stack involved on Pi400 side
 
-**Limitation**:
-- No cryptographic authentication (CRC32 detects errors, not malicious tampering)
-- GPIO signal integrity depends on hardware (no redundant pins)
-- Shared memory requires careful cache coherency management
+**Limitation (DD-002 documented)**:
+- UDP watchdog relies on Linux network stack on both ends (weaker than hardware I2C)
+- I2C BSC slave not feasible on BCM2711 — hardware-level I2C channel not achieved
+- GPIO 25 e-stop remains hardware-level (strong FFI)
+- No cryptographic authentication on UDP channel
+
+**Verification**: M7 FFI-COMM test — ROS2 topic flood must not affect UDP watchdog timing.
 
 ### 4. Design Independence
 
@@ -118,10 +121,14 @@ Per ISO 26262-6:2018 Clause 7.4.7, FFI ensures that a lower-ASIL or non-safety e
 
 | Source | Target | Mitigation | Effectiveness |
 |--------|--------|-----------|---------------|
-| DDS middleware fault | Supervisor data | No shared middleware | **Strong** |
-| Shared memory corruption | Supervisor decision | CRC32 validation | **Moderate** |
-| GPIO noise | Heartbeat detection | Edge filtering, timeout tolerance | **Moderate** |
-| Cosmic ray bit flip | Safety data | CRC32 (no ECC RAM) | **Weak** |
+| DDS middleware fault | UDP watchdog channel | Separate UDP socket (not ROS2) | **Strong** |
+| ROS2 topic flood | UDP watchdog timing | Separate network socket | **Strong** |
+| UDP packet loss | Watchdog response | Window timeout → failure_counter | **Moderate** |
+| Linux network stack fault | UDP watchdog | Stack crash = watchdog stops = SAFE_STATE | **Moderate** |
+| GPIO e-stop wire | Hardware safety action | Direct wire, no software on e-stop path | **Strong** |
+| Cosmic ray bit flip | Safety data | No ECC RAM | **Weak** |
+
+*Note: M7 FFI-COMM test will provide measured evidence for these ratings.*
 
 ## What This Demonstrates vs. What It Does Not
 
@@ -176,6 +183,21 @@ This architecture addresses specific challenges of AI in safety-critical systems
 
 **"What are the main limitations?"**
 > "Main limitation is the common-cause failures I haven't addressed: shared power supply, no hardware redundancy, and development tools that aren't qualified. Also, my CRC32 check detects bit errors but wouldn't detect malicious tampering. For production, I'd need ECC memory, dual power supplies, and probably cryptographic message authentication."
+
+## M7 FFI Verification Plan
+
+Formal verification of FFI measures is conducted in **M7 (issue #10)**:
+
+| Test | What it verifies | Script |
+|---|---|---|
+| FFI-SPATIAL | Pi5 CPU/memory stress does not affect Pi400 watchdog timing | `tests/ffi/ffi_spatial_stress.sh` |
+| FFI-TEMPORAL | AI inference load does not push watchdog responses outside 50–100ms window | `tests/ffi/ffi_temporal_timing.py` |
+| FFI-COMM | ROS2 topic flood does not affect UDP watchdog | `tests/ffi/ffi_comm_ros_flood.py` |
+
+Results will be recorded in `docs/ffi_verification_report.md` and
+effectiveness ratings updated with measured evidence.
+
+---
 
 ## References
 

@@ -60,12 +60,14 @@ The repository is prepared for M1 Hardware Bring-up. No ROS2 runtime code, hardw
 | Milestone | Title | Status |
 |---|---|---|
 | M0 | Repository Baseline | **Complete** |
-| M1 | Hardware Bring-up | Next |
-| M2 | ROS2 Sensor Pipeline | Planned |
-| M3 | Deterministic Decision Logic | Planned |
-| M4 | Fault Injection | Planned |
-| M5 | External Supervisor | Planned |
-| M6 | Portfolio-Ready Demo | Planned |
+| M1 | Hardware Bring-up | **Complete** |
+| M2 | ROS2 Sensor Pipeline | **Complete** |
+| M3 | Deterministic Decision Logic | **Complete** |
+| M4 | Camera AI Sensor Path | **Complete** |
+| M5 | FFI / External Supervisor (Pi400 Q&A Watchdog) | **Complete** |
+| M6 | Fault Injection Tests | **Complete** |
+| M7 | Freedom From Interference (FFI) Verification | Planned |
+| M8 | Portfolio-Ready Demo | Planned |
 
 ## Next Milestone: M1 Hardware Bring-up
 

@@ -50,12 +50,25 @@ public:
                 if (msg->data) pending_reset_ = true;
             });
 
+        // /detections liveness — placeholder subscription (M3+).
+        // camera_ai_node does not publish in M3; camera_valid stays false until M4.
+        // In M4: change std_msgs/String to vision_msgs/Detection2DArray.
+        detections_sub_ = create_subscription<std_msgs::msg::String>(
+            "/detections", 5,
+            [this](std_msgs::msg::String::SharedPtr) {
+                last_detection_time_ = now();
+                if (!camera_valid_) {
+                    camera_valid_ = true;
+                    RCLCPP_INFO(get_logger(), "camera_valid — /detections active");
+                }
+            });
+
         // 20 Hz evaluation + publish timer
         timer_ = create_wall_timer(50ms, [this]() { tick(); });
 
         RCLCPP_INFO(get_logger(), "decision_node started — StateEvaluator C++20");
         RCLCPP_INFO(get_logger(),
-            "M3: camera_valid=false (placeholder); watchdog_failure_counter=0 (M5)");
+            "camera_valid wired to /detections (2s timeout); watchdog_failure_counter=0 (M5)");
     }
 
 private:
@@ -78,17 +91,23 @@ private:
     void on_health(const diagnostic_msgs::msg::DiagnosticArray::SharedPtr& /*msg*/)
     {
         // watchdog_failure_counter deferred to M5 (Pi400 slave not yet implemented)
-        // camera_valid remains false in M3 (camera_ai_node is a placeholder)
     }
 
     void tick()
     {
         // Expire ultrasonic if no message received within 1 s
         if (ultrasonic_valid_) {
-            auto age = (now() - last_obstacle_time_).seconds();
-            if (age > 1.0) {
+            if ((now() - last_obstacle_time_).seconds() > 1.0) {
                 ultrasonic_valid_ = false;
                 RCLCPP_WARN(get_logger(), "Ultrasonic timeout — marking invalid");
+            }
+        }
+
+        // Expire camera_valid if no /detections received within 2 s
+        if (camera_valid_) {
+            if ((now() - last_detection_time_).seconds() > 2.0) {
+                camera_valid_ = false;
+                RCLCPP_WARN(get_logger(), "Camera timeout — marking invalid");
             }
         }
 
@@ -99,7 +118,7 @@ private:
         input.watchdog_failure_counter = 0;   // TODO M5: subscribe to Pi400 counter
         input.ultrasonic_valid         = ultrasonic_valid_;
         input.distance_m               = distance_m_;
-        input.camera_valid             = false;  // TODO M3+: wire to /detections liveness
+        input.camera_valid             = camera_valid_;
 
         pending_reset_ = false;
 
@@ -131,15 +150,18 @@ private:
     bool   system_ready_     = false;
     bool   ultrasonic_valid_ = false;
     float  distance_m_       = 9.9f;
+    bool   camera_valid_     = false;
     bool   pending_reset_    = false;
 
     rclcpp::Time last_obstacle_time_{0, 0, RCL_ROS_TIME};
+    rclcpp::Time last_detection_time_{0, 0, RCL_ROS_TIME};
 
     rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr    cmd_vel_pub_;
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr        sys_state_pub_;
     rclcpp::Subscription<sensor_msgs::msg::Range>::SharedPtr   obstacles_sub_;
     rclcpp::Subscription<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr health_sub_;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr       reset_sub_;
+    rclcpp::Subscription<std_msgs::msg::String>::SharedPtr     detections_sub_;
     rclcpp::TimerBase::SharedPtr                               timer_;
 };
 

@@ -29,8 +29,9 @@ except ImportError:
 
 class HealthNode(Node):
 
-    GPIO_CHIP      = 4          # Pi5 RP1 southbridge
-    GPIO_GREEN_LED = 17         # Pin 11 — NORMAL state indicator
+    GPIO_CHIP       = 4   # Pi5 RP1 southbridge
+    GPIO_GREEN_LED  = 17  # Pin 11 — NORMAL/WARNING/DEGRADED/INIT indicator
+    GPIO_YELLOW_LED = 27  # Pin 13 — DEGRADED state indicator
     I2C_BUS        = 1          # /dev/i2c-1 (GPIO 2 SDA, GPIO 3 SCL)
     I2C_ADDR       = 0x40       # Pi400 Q&A watchdog slave
     REG_SEED       = 0x00
@@ -42,10 +43,11 @@ class HealthNode(Node):
     def __init__(self):
         super().__init__('health_node')
 
-        # GPIO — green LED ON immediately
+        # GPIO — green LED ON, yellow LED OFF at startup
         self._gpio = lgpio.gpiochip_open(self.GPIO_CHIP)
-        lgpio.gpio_claim_output(self._gpio, self.GPIO_GREEN_LED, 1)
-        self.get_logger().info('Green LED ON (GPIO 17, Pin 11)')
+        lgpio.gpio_claim_output(self._gpio, self.GPIO_GREEN_LED,  1)
+        lgpio.gpio_claim_output(self._gpio, self.GPIO_YELLOW_LED, 0)
+        self.get_logger().info('Green LED ON (GPIO 17), Yellow LED OFF (GPIO 27)')
 
         # I2C
         self._i2c = None
@@ -111,9 +113,12 @@ class HealthNode(Node):
 
     def _on_system_state(self, msg: String) -> None:
         self._system_state = msg.data
-        # Green LED: ON in NORMAL/WARNING/DEGRADED/INIT, OFF in SAFE_STATE
-        led_on = (msg.data != 'SAFE_STATE')
-        lgpio.gpio_write(self._gpio, self.GPIO_GREEN_LED, 1 if led_on else 0)
+        # Green LED: ON in INIT/NORMAL/WARNING/DEGRADED, OFF in SAFE_STATE
+        green = (msg.data != 'SAFE_STATE')
+        lgpio.gpio_write(self._gpio, self.GPIO_GREEN_LED, 1 if green else 0)
+        # Yellow LED: ON in DEGRADED only
+        yellow = (msg.data == 'DEGRADED')
+        lgpio.gpio_write(self._gpio, self.GPIO_YELLOW_LED, 1 if yellow else 0)
 
     def _publish_health(self) -> None:
         msg = DiagnosticArray()
@@ -137,8 +142,10 @@ class HealthNode(Node):
     # ----------------------------------------------------------------
 
     def destroy_node(self) -> None:
-        lgpio.gpio_write(self._gpio, self.GPIO_GREEN_LED, 0)
+        lgpio.gpio_write(self._gpio, self.GPIO_GREEN_LED,  0)
+        lgpio.gpio_write(self._gpio, self.GPIO_YELLOW_LED, 0)
         lgpio.gpio_free(self._gpio, self.GPIO_GREEN_LED)
+        lgpio.gpio_free(self._gpio, self.GPIO_YELLOW_LED)
         lgpio.gpiochip_close(self._gpio)
         if self._i2c is not None:
             self._i2c.close()

@@ -5,6 +5,8 @@
 #include "sensor_msgs/msg/range.hpp"
 #include "geometry_msgs/msg/twist.hpp"
 #include "diagnostic_msgs/msg/diagnostic_array.hpp"
+#include "diagnostic_msgs/msg/diagnostic_status.hpp"
+#include "diagnostic_msgs/msg/key_value.hpp"
 #include "std_msgs/msg/bool.hpp"
 #include "std_msgs/msg/string.hpp"
 
@@ -34,6 +36,8 @@ public:
         // Publishers
         cmd_vel_pub_   = create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 1);
         sys_state_pub_ = create_publisher<std_msgs::msg::String>("/system_state", 5);
+        diag_pub_      = create_publisher<diagnostic_msgs::msg::DiagnosticArray>(
+                             "/diagnostics", 5);
 
         // Subscriptions
         obstacles_sub_ = create_subscription<sensor_msgs::msg::Range>(
@@ -143,6 +147,51 @@ private:
         std_msgs::msg::String state_msg;
         state_msg.data = state_name(output.next_state);
         sys_state_pub_->publish(state_msg);
+
+        // Publish full diagnostics — all evaluator inputs + trigger reason
+        publish_diagnostics(input, output);
+    }
+
+    void publish_diagnostics(const EvaluatorInput& in, const EvaluatorOutput& out)
+    {
+        using KV = diagnostic_msgs::msg::KeyValue;
+        auto kv = [](const std::string& k, const std::string& v) {
+            KV p; p.key = k; p.value = v; return p;
+        };
+
+        diagnostic_msgs::msg::DiagnosticStatus s;
+        s.name        = "decision_node/state_evaluator";
+        s.hardware_id = "pi5";
+        s.message     = std::string(state_name(out.next_state)) +
+                        " [" + trigger_name(out.trigger) + "]";
+
+        switch (out.next_state) {
+            case SystemState::NORMAL:
+                s.level = diagnostic_msgs::msg::DiagnosticStatus::OK;   break;
+            case SystemState::WARNING:
+            case SystemState::DEGRADED:
+            case SystemState::INIT:
+                s.level = diagnostic_msgs::msg::DiagnosticStatus::WARN; break;
+            default:
+                s.level = diagnostic_msgs::msg::DiagnosticStatus::ERROR; break;
+        }
+
+        s.values = {
+            kv("state",                   state_name(out.next_state)),
+            kv("trigger",                 trigger_name(out.trigger)),
+            kv("velocity_scale",          std::to_string(out.velocity_scale)),
+            kv("camera_valid",            in.camera_valid       ? "true" : "false"),
+            kv("ultrasonic_valid",        in.ultrasonic_valid   ? "true" : "false"),
+            kv("distance_m",              std::to_string(in.distance_m)),
+            kv("system_ready",            in.system_ready       ? "true" : "false"),
+            kv("watchdog_failure_counter",std::to_string(in.watchdog_failure_counter)),
+            kv("manual_reset_requested",  in.manual_reset_requested ? "true" : "false"),
+        };
+
+        diagnostic_msgs::msg::DiagnosticArray msg;
+        msg.header.stamp = get_clock()->now();
+        msg.status.push_back(s);
+        diag_pub_->publish(msg);
     }
 
     StateEvaluator  evaluator_;
@@ -157,8 +206,9 @@ private:
     rclcpp::Time last_obstacle_time_{0, 0, RCL_ROS_TIME};
     rclcpp::Time last_detection_time_{0, 0, RCL_ROS_TIME};
 
-    rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr    cmd_vel_pub_;
-    rclcpp::Publisher<std_msgs::msg::String>::SharedPtr        sys_state_pub_;
+    rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr             cmd_vel_pub_;
+    rclcpp::Publisher<std_msgs::msg::String>::SharedPtr                 sys_state_pub_;
+    rclcpp::Publisher<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr diag_pub_;
     rclcpp::Subscription<sensor_msgs::msg::Range>::SharedPtr   obstacles_sub_;
     rclcpp::Subscription<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr health_sub_;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr       reset_sub_;

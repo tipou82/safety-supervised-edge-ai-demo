@@ -103,9 +103,9 @@ classDiagram
 
     class UltrasonicNode {
         <<rclpy node>>
-        +publish_hz : 10
+        +publish_hz : 20
         +gpio_sig : 23
-        +range_m : 0.02–3.50
+        +range_m : 0.02 to 3.50
     }
 
     class CameraAINode {
@@ -116,7 +116,7 @@ classDiagram
 
     class DecisionNode {
         <<rclpy + C++20 node>>
-        +eval_hz : 20
+        +eval_hz : 50
         +warn_distance_m : 0.50
         +safe_distance_m : 0.15
     }

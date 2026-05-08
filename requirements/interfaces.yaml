@@ -27,10 +27,13 @@ topics:
     publisher: ultrasonic_node
     subscribers:
       - decision_node
-    rate: 10 Hz
+    rate: 20 Hz
     description: Ultrasonic distance measurements
     safety_relevant: true
-    notes: Redundant perception for close-range obstacles
+    notes: >
+      Rate increased from 10 Hz to 20 Hz (50ms period) to support SYS-SAFE-011
+      proximity FTTI of 100ms. Combined with decision_node at 50 Hz, worst-case
+      FTTI = 50ms + 20ms + 10ms overhead = 80ms < 100ms.
 
   /cmd_vel:
     type: geometry_msgs/Twist
@@ -41,7 +44,7 @@ topics:
     publisher: decision_node
     subscribers:
       - actuator_node
-    rate: 20 Hz
+    rate: 50 Hz
     description: Velocity commands for motion control
     safety_relevant: false
 
@@ -308,6 +311,19 @@ timing:
     failure_counter_threshold: 3
     detection_latency: <100 ms
     source: Pi400 QNX Watchdog Server
+
+  proximity_ftti:
+    requirement: SYS-SAFE-011
+    ftti_budget_ms: 100
+    ultrasonic_period_ms: 50   # 20 Hz
+    decision_period_ms: 20     # 50 Hz
+    overhead_ms: 10
+    worst_case_ms: 80
+    margin_ms: 20
+    description: >
+      Worst-case latency from ultrasonic reading below SAFE_DISTANCE (0.15m)
+      to SAFE_STATE entry. camera_valid=true (from camera AI) is a precondition
+      but the timed trigger is the ultrasonic measurement only.
 
   safe_state_latency:
     detection_to_decision: <20 ms

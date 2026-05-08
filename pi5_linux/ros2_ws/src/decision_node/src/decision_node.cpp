@@ -63,8 +63,8 @@ public:
                 }
             });
 
-        // 20 Hz evaluation + publish timer
-        timer_ = create_wall_timer(50ms, [this]() { tick(); });
+        // 50 Hz evaluation + publish timer — increased from 20 Hz for SYS-SAFE-011 proximity FTTI
+        timer_ = create_wall_timer(20ms, [this]() { tick(); });
 
         RCLCPP_INFO(get_logger(), "decision_node started — StateEvaluator C++20");
         RCLCPP_INFO(get_logger(),

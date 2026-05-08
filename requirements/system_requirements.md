@@ -125,6 +125,15 @@ This document defines the system-level requirements for the Safety-Supervised Ed
 - Default state at Pi400 boot: LOW (asserted — fail-safe)
 - **ASIL**: B-inspired
 
+**SYS-SAFE-011**: Proximity FTTI — Hand Detection to SAFE_STATE
+- When `camera_valid=true` (camera AI sensor path active) AND ultrasonic distance drops below SAFE_DISTANCE (0.15 m), the system shall enter SAFE_STATE within **100 ms** of the ultrasonic measurement that triggers the threshold breach.
+- This requirement applies under Interpretation B: the deterministic ultrasonic path is the timed safety trigger; camera AI contributes `camera_valid` only and does not directly enter the safety path.
+- **Rationale**: A human hand detected in the operating area must cause the system to halt within a bounded time to prevent injury. 100 ms bounds the worst-case latency from the proximity measurement to motor inhibit.
+- **Implementation**: ultrasonic_node at ≥ 20 Hz (50 ms period) + decision_node StateEvaluator at ≥ 50 Hz (20 ms period) → worst-case FTTI = 50 + 20 + 10 (overhead) = 80 ms < 100 ms.
+- **AI safety boundary**: Camera AI output (raw detections) does NOT enter the safety path. Only `camera_valid` (boolean liveness flag) is used by StateEvaluator. The proximity trigger is ultrasonic only.
+- **ASIL**: B-inspired
+- **Priority**: Critical
+
 ### State Management
 
 **SYS-SAFE-007**: State Machine

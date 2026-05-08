@@ -12,7 +12,7 @@ from sensor_msgs.msg import Range
 
 GPIO_CHIP    = 4   # Pi5 RP1 southbridge
 GPIO_SIG     = 23  # Pin 16 — Grove Ultrasonic Ranger SIG
-PUBLISH_HZ   = 10
+PUBLISH_HZ   = 20   # increased from 10 Hz for SYS-SAFE-011 proximity FTTI
 TRIGGER_US   = 10  # µs trigger pulse
 TIMEOUT_S    = 0.03
 

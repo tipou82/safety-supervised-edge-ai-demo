@@ -303,7 +303,7 @@ requirementDiagram
         id: SYS_SAFE_006
         text: Safe state latency less than 150ms from fault to motor disable
         risk: High
-        verifymethod: Measurement
+        verifymethod: Test
     }
 
     requirement SYS_SAFE_010 {

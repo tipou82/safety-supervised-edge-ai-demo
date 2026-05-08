@@ -16,10 +16,17 @@ def generate_launch_description():
             name='ultrasonic_node',
             output='screen',
         ),
+        # M7 Spatial FFI: camera AI split into two MMU-isolated processes
         Node(
-            package='camera_ai_node',
-            executable='camera_ai_node',
-            name='camera_ai_node',
+            package='hand_detection_node',
+            executable='hand_detection_node',
+            name='hand_detection_node',
+            output='screen',
+        ),
+        Node(
+            package='object_detection_node',
+            executable='object_detection_node',
+            name='object_detection_node',
             output='screen',
         ),
         Node(

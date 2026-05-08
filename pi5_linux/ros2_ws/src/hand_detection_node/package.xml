@@ -1,26 +1,18 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>safety_demo</name>
+  <name>hand_detection_node</name>
   <version>0.1.0</version>
-  <description>Launch package for the safety-supervised edge AI demonstrator</description>
+  <description>M7 Spatial FFI: MediaPipe hand detection — separate process from YOLOv8n object classifier</description>
   <maintainer email="yangyunpeng@gmail.com">Yunpeng Yang</maintainer>
   <license>MIT</license>
-
-  <exec_depend>health_node</exec_depend>
-  <exec_depend>ultrasonic_node</exec_depend>
-  <exec_depend>hand_detection_node</exec_depend>
-  <exec_depend>object_detection_node</exec_depend>
-  <exec_depend>decision_node</exec_depend>
-  <exec_depend>actuator_node</exec_depend>
-
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
   <buildtool_depend>ament_python</buildtool_depend>
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
   <test_depend>ament_pep257</test_depend>
   <test_depend>python3-pytest</test_depend>
-
-  <export>
-    <build_type>ament_python</build_type>
-  </export>
+  <export><build_type>ament_python</build_type></export>
 </package>

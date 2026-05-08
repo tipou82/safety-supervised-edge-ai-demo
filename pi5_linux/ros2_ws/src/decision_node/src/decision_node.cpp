@@ -132,9 +132,11 @@ private:
         input.distance_m               = distance_m_;
         input.camera_valid             = camera_valid_;
 
-        pending_reset_ = false;
-
         auto output = evaluator_.evaluate(input);
+
+        // Only consume reset if it was acted on (all_clear was true and state changed)
+        if (pending_reset_ && output.next_state == SystemState::INIT)
+            pending_reset_ = false;
 
         if (output.next_state != current_state_) {
             RCLCPP_INFO(get_logger(), "State: %s → %s  (vel_scale=%.1f)",

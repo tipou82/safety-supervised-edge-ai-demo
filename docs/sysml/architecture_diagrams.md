@@ -280,21 +280,21 @@ requirementDiagram
 
     requirement SYS_SAFE_007 {
         id: SYS-SAFE-007
-        text: State machine with 5 states — INIT NORMAL WARNING DEGRADED SAFE_STATE
+        text: State machine with 5 states INIT NORMAL WARNING DEGRADED SAFE_STATE
         risk: High
         verifymethod: Test
     }
 
     requirement SYS_SAFE_004 {
         id: SYS-SAFE-004
-        text: Q&A watchdog window 50–100ms valid response window
+        text: QA watchdog valid response window 50 to 100ms
         risk: High
         verifymethod: Test
     }
 
     requirement SYS_SAFE_004a {
         id: SYS-SAFE-004a
-        text: failure_counter threshold 3 triggers SAFE_STATE
+        text: failure counter threshold 3 triggers SAFE STATE
         risk: High
         verifymethod: Test
     }

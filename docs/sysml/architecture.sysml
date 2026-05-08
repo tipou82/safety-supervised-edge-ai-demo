@@ -217,78 +217,274 @@ package SafetySupervisedEdgeAI {
     // System State Machine
     // ─────────────────────────────────────────────────────────────
 
+    // ── State Action Helper ───────────────────────────────────────────────────
+    // Documents LED output and velocity scale for each state.
+    // Verified on hardware 2026-05-08.
+
+    action def StateEntry_INIT {
+        doc /* Green LED: ON  |  Yellow LED: OFF  |  Red LED: OFF  |  vel_scale: 0.0 */
+    }
+    action def StateEntry_NORMAL {
+        doc /* Green LED: ON  |  Yellow LED: OFF  |  Red LED: OFF  |  vel_scale: 1.0 */
+    }
+    action def StateEntry_WARNING {
+        doc /* Green LED: ON  |  Yellow LED: OFF  |  Red LED: OFF  |  vel_scale: 0.5 */
+    }
+    action def StateEntry_DEGRADED {
+        doc /* Green LED: ON  |  Yellow LED: ON   |  Red LED: OFF  |  vel_scale: 0.2 */
+    }
+    action def StateEntry_SAFE_STATE {
+        doc /* Green LED: OFF |  Yellow LED: OFF  |  Red LED: ON   |  vel_scale: 0.0
+                Red LED driven by: actuator_node (software path) OR Pi400 safe_state_ctrl (hardware path).
+                Green LED driven OFF by: health_node on /system_state = SAFE_STATE.
+                SAFE_STATE requires explicit manual reset — no auto-recovery. */
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // System State Machine
+    // ─────────────────────────────────────────────────────────────
+
     state def SystemStateMachine {
-        doc /* Managed by QNX supervisor. SAFE_STATE requires manual reset.
-                LED mapping: NORMAL→Green, DEGRADED→Yellow, SAFE_STATE→Red. */
+        doc /* Software state machine running in decision_node (Pi5, C++20 StateEvaluator).
+                Evaluated at 20 Hz. Priority rules enforced in fixed order.
+                SAFE_STATE requires manual reset — no auto-recovery.
+                LED outputs and velocity scaling verified on hardware 2026-05-08.
+                GPIO 25 e-stop (Pi400 hardware) is independent of this state machine. */
 
         entry; then INIT;
 
         state INIT {
-            doc /* System initialising. E-stop asserted by Pi400 at boot. */
+            doc /* System initialising. Waiting for first valid sensor reading.
+                    vel_scale=0.0. Green LED ON, Red LED OFF. */
+            entry StateEntry_INIT;
         }
 
         state NORMAL {
-            doc /* All nodes operational. Green LED ON. Full autonomous mode. */
+            doc /* Both sensor paths valid. No obstacle within warning distance.
+                    vel_scale=1.0. Green LED ON. */
+            entry StateEntry_NORMAL;
         }
 
         state WARNING {
-            doc /* Sensor degraded, system continues at 50% velocity. */
+            doc /* Both sensors valid but obstacle within 0.50 m.
+                    vel_scale=0.5. Green LED ON. */
+            entry StateEntry_WARNING;
         }
 
         state DEGRADED {
-            doc /* AI node failed. Ultrasonic-only operation at 20% velocity. Yellow LED ON. */
+            doc /* Exactly one sensor path valid (camera OR ultrasonic, not both).
+                    vel_scale=0.2. Green LED ON, Yellow LED ON.
+                    In M3: camera_valid=false always → DEGRADED is nominal operating state. */
+            entry StateEntry_DEGRADED;
         }
 
         state SAFE_STATE {
-            doc /* Motors disabled. Red LED ON (Pi5 GPIO 22 or Pi400 GPIO 22, wired-OR).
-                    Q&A watchdog failure_counter reached 3 or operator command. */
+            doc /* Any critical fault: obstacle < 0.15 m, both sensors gone,
+                    or watchdog_failure_counter >= 3.
+                    vel_scale=0.0. Green LED OFF, Red LED ON.
+                    Latches — only exits via manual_reset when all conditions cleared. */
+            entry StateEntry_SAFE_STATE;
         }
+
+        // ── Transitions (priority order matches StateEvaluator rules) ─────────
+
+        transition INIT_to_SAFE
+            first INIT
+            accept critical_fault   // watchdog>=3, distance<0.15m, both sensors gone
+            then SAFE_STATE;
+
+        transition INIT_to_DEGRADED
+            first INIT
+            accept system_ready_one_sensor  // system_ready AND exactly one sensor valid
+            then DEGRADED;
+
+        transition INIT_to_WARNING
+            first INIT
+            accept system_ready_warning     // system_ready AND distance < 0.50m
+            then WARNING;
 
         transition INIT_to_NORMAL
             first INIT
-            accept startup_ok      // Q&A watchdog first correct response received
+            accept system_ready_clear       // system_ready AND both sensors valid AND clear
             then NORMAL;
 
         transition NORMAL_to_WARNING
             first NORMAL
-            accept sensor_degraded
+            accept distance_below_warn      // ultrasonic_valid AND distance_m < 0.50
             then WARNING;
+
+        transition NORMAL_to_DEGRADED
+            first NORMAL
+            accept one_sensor_lost          // exactly one sensor path becomes invalid
+            then DEGRADED;
 
         transition NORMAL_to_SAFE
             first NORMAL
-            accept watchdog_fail   // failure_counter >= 3
+            accept critical_fault           // distance<0.15m, both sensors gone, watchdog>=3
             then SAFE_STATE;
 
         transition WARNING_to_NORMAL
             first WARNING
-            accept fault_cleared
+            accept obstacle_cleared         // distance >= 0.50m AND both sensors valid
             then NORMAL;
 
         transition WARNING_to_DEGRADED
             first WARNING
-            accept multiple_faults
+            accept one_sensor_lost
             then DEGRADED;
 
         transition WARNING_to_SAFE
             first WARNING
-            accept watchdog_fail
+            accept critical_fault
             then SAFE_STATE;
+
+        transition DEGRADED_to_NORMAL
+            first DEGRADED
+            accept both_sensors_recovered   // both camera_valid AND ultrasonic_valid AND clear
+            then NORMAL;
 
         transition DEGRADED_to_WARNING
             first DEGRADED
-            accept ai_recovered
+            accept second_sensor_recovered_warning  // both valid but distance < 0.50m
             then WARNING;
 
         transition DEGRADED_to_SAFE
             first DEGRADED
-            accept watchdog_fail   // OR operator command
+            accept critical_fault           // distance<0.15m, both sensors gone, watchdog>=3
             then SAFE_STATE;
 
         transition SAFE_to_INIT
             first SAFE_STATE
-            accept manual_reset    // No auto-recovery
+            accept manual_reset_all_clear   // manual_reset=true AND all triggering conditions cleared
             then INIT;
     }
+
+    // ─────────────────────────────────────────────────────────────
+    // Dynamic Diagrams — Verified Interaction Scenarios
+    // Verified on hardware 2026-05-08.
+    // ─────────────────────────────────────────────────────────────
+
+    // Scenario 1: Normal startup (M3 — camera placeholder)
+    interaction def Scenario_Startup_M3 {
+        doc /* Startup sequence with camera_ai_node placeholder (M3).
+                Camera is always invalid in M3 → DEGRADED is nominal state.
+                Verified: 2026-05-08. */
+
+        occurrence nodes_boot         : SystemBoot;
+        occurrence first_ultrasonic   : UltrasonicReading;
+        occurrence state_safe         : SystemStateChange;   // INIT → SAFE_STATE
+        occurrence state_degraded     : SystemStateChange;   // SAFE_STATE → INIT → DEGRADED
+        occurrence led_red_on         : LEDEvent;            // red ON at SAFE_STATE
+        occurrence led_green_off      : LEDEvent;            // green OFF at SAFE_STATE
+        occurrence led_green_on2      : LEDEvent;            // green ON at DEGRADED
+        occurrence led_red_off        : LEDEvent;            // red OFF at DEGRADED
+
+        then nodes_boot;
+        // Both sensors invalid at boot → Rule 3 triggers SAFE_STATE immediately
+        then state_safe;             // INIT → SAFE_STATE
+        then led_red_on;             // actuator_node: red LED ON
+        then led_green_off;          // health_node: green LED OFF
+        then first_ultrasonic;       // system_ready = true, ultrasonic_valid = true
+        // state LATCHES in SAFE_STATE — manual reset required
+        // Operator publishes /reset
+        then state_degraded;         // SAFE_STATE → INIT → DEGRADED
+        then led_green_on2;          // health_node: green LED ON
+        then led_red_off;            // actuator_node: red LED OFF
+    }
+
+    // Scenario 2: Obstacle detection → SAFE_STATE entry and exit
+    interaction def Scenario_ObstacleSafeState {
+        doc /* Obstacle enters critical zone (<0.15m) from DEGRADED state.
+                SAFE_STATE latches until manual reset with obstacle removed.
+                Verified: 2026-05-08. */
+
+        occurrence in_degraded      : SystemState;     // running in DEGRADED
+        occurrence obstacle_near    : UltrasonicReading;  // distance < 0.15m
+        occurrence safe_entry       : SystemStateChange;  // DEGRADED → SAFE_STATE
+        occurrence led_red_on       : LEDEvent;           // red ON
+        occurrence led_green_off    : LEDEvent;           // green OFF
+        occurrence obstacle_removed : UltrasonicReading;  // distance > 0.15m
+        occurrence state_latches    : SystemState;        // still SAFE_STATE (latch)
+        occurrence manual_reset     : ResetEvent;         // /reset published
+        occurrence back_to_degraded : SystemStateChange;  // SAFE_STATE → INIT → DEGRADED
+        occurrence led_green_on     : LEDEvent;           // green ON
+        occurrence led_red_off      : LEDEvent;           // red OFF
+
+        then in_degraded;
+        then obstacle_near;
+        then safe_entry;        // StateEvaluator: distance < 0.15m → SAFE_STATE
+        then led_red_on;
+        then led_green_off;
+        then obstacle_removed;
+        then state_latches;     // Rule 1: latches even though condition cleared
+        then manual_reset;
+        then back_to_degraded;
+        then led_green_on;
+        then led_red_off;
+    }
+
+    // Scenario 3: Hardware e-stop (independent of state machine)
+    interaction def Scenario_HardwareEstop {
+        doc /* Pi400 asserts GPIO 25 LOW independently of software state machine.
+                actuator_node forces motor commands to zero and lights red LED.
+                decision_node state is NOT affected — e-stop is a hardware layer below it.
+                This independence is the key FFI measure for the safety supervisor.
+                Verified: 2026-05-08 (M2 e-stop test). */
+
+        occurrence pi400_asserts    : GPIOEvent;       // Pi400 GPIO 25 → LOW
+        occurrence actuator_detects : ActuatorEvent;   // actuator_node polls at 100 Hz
+        occurrence motor_inhibit    : ActuatorEvent;   // motor commands zeroed
+        occurrence led_red_hw       : LEDEvent;        // red LED ON (hardware path)
+        occurrence sw_state_unchanged : SystemState;   // decision_node state unchanged
+        occurrence pi400_releases   : GPIOEvent;       // Pi400 GPIO 25 → HIGH
+        occurrence motor_restored   : ActuatorEvent;   // commands accepted again
+        occurrence led_red_off      : LEDEvent;        // red LED OFF (if sw state not SAFE_STATE)
+
+        then pi400_asserts;
+        then actuator_detects;      // within 10 ms (100 Hz polling)
+        then motor_inhibit;
+        then led_red_hw;
+        then sw_state_unchanged;    // decision_node continues in its own state
+        then pi400_releases;
+        then motor_restored;
+        then led_red_off;
+    }
+
+    // Scenario 4: Q&A Watchdog failure → SAFE_STATE (M5 — not yet active)
+    interaction def Scenario_WatchdogFailure {
+        doc /* Pi400 Q&A watchdog failure_counter reaches 3.
+                Pi400 asserts GPIO 25 AND red LED independently.
+                Software state machine also enters SAFE_STATE via watchdog_failure_counter input.
+                Two independent paths to SAFE_STATE: hardware (GPIO 25) + software (StateEvaluator).
+                Status: NOT YET ACTIVE — Pi400 I2C slave implementation deferred to M5. */
+
+        occurrence wdg_fail_1 : WatchdogEvent;   // failure_counter = 1
+        occurrence wdg_fail_2 : WatchdogEvent;   // failure_counter = 2
+        occurrence wdg_fail_3 : WatchdogEvent;   // failure_counter = 3 → threshold
+        occurrence hw_estop   : GPIOEvent;        // Pi400 asserts GPIO 25 LOW (hardware path)
+        occurrence sw_safe    : SystemStateChange; // StateEvaluator enters SAFE_STATE (software path)
+        occurrence red_led_hw : LEDEvent;          // Pi400 GPIO 22 → red LED ON (hardware path)
+        occurrence red_led_sw : LEDEvent;          // actuator_node GPIO 22 → red LED ON (software path)
+
+        then wdg_fail_1;
+        then wdg_fail_2;
+        then wdg_fail_3;
+        then hw_estop;     // Pi400 independent of Pi5
+        then sw_safe;      // decision_node StateEvaluator (when wired in M5)
+        then red_led_hw;
+        then red_led_sw;
+    }
+
+    // ── Event Type Definitions ────────────────────────────────────────────────
+    occurrence def SystemBoot;
+    occurrence def SystemState;
+    occurrence def SystemStateChange;
+    occurrence def UltrasonicReading;
+    occurrence def LEDEvent;
+    occurrence def ResetEvent;
+    occurrence def GPIOEvent;
+    occurrence def ActuatorEvent;
+    occurrence def WatchdogEvent;
 
     // ─────────────────────────────────────────────────────────────
     // Requirements

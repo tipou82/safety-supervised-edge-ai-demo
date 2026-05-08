@@ -1,207 +1,76 @@
 # SysML v2 Pilot Implementation — Setup Notes
 
 **Host**: Ubuntu 22.04.5 LTS (x86_64)
-**Purpose**: Validate and visualise `docs/sysml/architecture.sysml` for the
-Safety-Supervised Edge AI Demonstrator project.
+**Status**: Investigation complete — Mermaid chosen as diagram approach (see decision below).
 
 This is an **educational demonstrator** only. No ISO 26262 certification is claimed.
 
 ---
 
-## 1. Prerequisites
+## Decision: Mermaid diagrams over SysML v2 Pilot Implementation
 
-### 1.1 Check installed tools
+After investigating the SysML v2 Pilot Implementation toolchain, the project uses
+**Mermaid diagrams in `docs/sysml/architecture_diagrams.md`** as the single source of truth
+for all architecture diagrams. Reasons:
 
-```bash
-java -version
-git --version
-plantuml -version
-dot -V
-```
+| Path | Outcome |
+|---|---|
+| Eclipse Pilot Implementation (from source) | Blocked — `sysand.so` proprietary native library missing from public Maven |
+| Eclipse via Oomph installer | Complex — requires Sensmetry-controlled package |
+| SysIDE (VS Code) diagram rendering | Commercial — 126€/month for graphical views |
+| Jupyter SysML v2 kernel | Text validation only, no diagrams |
+| **Mermaid in `.md` (chosen)** | **Free, renders on GitHub, single source of truth** |
 
-**Status on this machine (checked 2026-05-08):**
+All diagram rules are documented in `AGENTS.md` (Mermaid diagram rules section).
 
-| Tool | Required version | Status |
-|---|---|---|
-| Java (JDK) | 11 or 17 recommended | ❌ Not installed |
-| git | Any recent | ✅ 2.34.1 |
-| plantuml | Any | ❌ Not installed |
-| graphviz (dot) | Any | ❌ Not installed |
+---
 
-### 1.2 Install missing packages
-
-Run the following (enter your sudo password when prompted):
+## Prerequisites (for future reference if Eclipse path is revisited)
 
 ```bash
 sudo apt update
-sudo apt install -y git default-jdk plantuml graphviz
+sudo apt install -y git openjdk-17-jdk plantuml graphviz
 ```
 
-**Note**: `default-jdk` on Ubuntu 22.04 installs OpenJDK 11. The Pilot Implementation
-requires Java 11+. Do not automate sudo password entry.
+| Tool | Required version | Status on this machine |
+|---|---|---|
+| Java (JDK) | 17+ | Installed (openjdk-17) |
+| git | Any recent | ✅ 2.34.1 |
+| plantuml | Any | Installed |
+| graphviz (dot) | Any | Installed |
 
-Verify after install:
+---
+
+## SysML v2 Pilot Implementation Clone
+
+Cloned 2026-05-08 to `~/tools/SysML-v2-Pilot-Implementation/` (not committed to repo).
 
 ```bash
-java -version
-plantuml -version
-dot -V
+# To update:
+cd ~/tools/SysML-v2-Pilot-Implementation && git pull
 ```
 
 ---
 
-## 2. Clone SysML v2 Pilot Implementation
+## Known Blockers (Eclipse path)
 
-```bash
-mkdir -p ~/tools
-cd ~/tools
-git clone https://github.com/Systems-Modeling/SysML-v2-Pilot-Implementation.git
-```
-
-If already cloned, update instead:
-
-```bash
-cd ~/tools/SysML-v2-Pilot-Implementation
-git pull
-```
-
-**Status**: Cloned successfully 2026-05-08 to `~/tools/SysML-v2-Pilot-Implementation/`.
-
-### Repository structure
-
-```
-SysML-v2-Pilot-Implementation/
-  kerml/                  ← KerML grammar and Xtext sources
-  sysml/                  ← SysML v2 grammar and Xtext sources
-  sysml.library/          ← Standard SysML v2 library
-  tool-support/           ← Jupyter/API server support
-  org.omg.*/              ← 32 Eclipse plugin projects
-  pom.xml                 ← Maven build file
-  mvnw / mvnw.cmd         ← Maven wrapper
-  README.adoc
-```
-
----
-
-## 3. Eclipse Modeling Tools — Installation (Manual Step)
-
-The Pilot Implementation is distributed as an Eclipse plugin. You need
-**Eclipse Modeling Tools** as the base IDE.
-
-### 3.1 Download Eclipse Modeling Tools
-
-1. Go to: https://www.eclipse.org/downloads/packages/
-2. Download **Eclipse Modeling Tools** (not Eclipse IDE for Java — the Modeling variant)
-3. Extract to `~/tools/eclipse/` (or similar)
-4. Launch: `~/tools/eclipse/eclipse`
-
-### 3.2 Install SysML v2 Plugin via Eclipse Update Site
-
-Two options:
-
-**Option A — Nightly update site (recommended for latest)**:
-1. Eclipse → Help → Install New Software
-2. Add site: `https://sysml.org/sysml-api-20240901/`
-   *(Check https://github.com/Systems-Modeling/SysML-v2-Pilot-Implementation for current URL)*
-3. Select all SysML v2 features
-4. Accept licence → Finish → Restart Eclipse
-
-**Option B — Build from source with Maven**:
-```bash
-cd ~/tools/SysML-v2-Pilot-Implementation
-./mvnw package -DskipTests
-```
-Then install the generated update site from `org.omg.sysml.updatesite/target/repository/`.
-
-### 3.3 Import the SysML v2 project
-
-1. Eclipse → File → Import → Existing Projects into Workspace
-2. Navigate to `~/tools/SysML-v2-Pilot-Implementation/`
-3. Import all projects
-4. Wait for Xtext build to complete
-
----
-
-## 4. PlantUML and Graphviz
-
-PlantUML is used for rendering UML/SysML diagrams as images from text.
-Graphviz (`dot`) is a PlantUML dependency for layout.
-
-After installing:
-
-```bash
-# Test PlantUML with a simple diagram
-echo '@startuml\nA -> B : hello\n@enduml' | plantuml -pipe > /tmp/test.png
-xdg-open /tmp/test.png
-```
-
-**Note**: PlantUML does **not** natively support SysML v2 textual syntax. It supports
-a subset of SysML block diagrams via its own notation. For full SysML v2 validation
-and rendering, use the Eclipse plugin.
-
----
-
-## 5. Using the Pilot Implementation
-
-### 5.1 Open a SysML v2 file
-
-After Eclipse + plugin are installed:
-
-1. Create a new SysML v2 project (File → New → SysML v2 Project)
-2. Copy or link `docs/sysml/architecture.sysml` into the project
-3. Eclipse will validate syntax automatically (red markers = errors)
-4. Use the SysML v2 diagram views for rendering
-
-### 5.2 Jupyter Notebook API server (alternative)
-
-The `tool-support/` directory contains a Jupyter-based API server for
-programmatic model access. Requires Python 3.8+ and additional setup:
-
-```bash
-cd ~/tools/SysML-v2-Pilot-Implementation/tool-support
-pip install -r requirements.txt
-jupyter notebook
-```
-
-See `tool-support/README.md` for details.
-
----
-
-## 6. Known Limitations
-
-| Limitation | Detail |
+| Blocker | Detail |
 |---|---|
-| Java required | Pilot Implementation will not run without JDK 11+ |
-| Eclipse only | No standalone CLI validator in the free distribution |
-| PlantUML gap | PlantUML cannot parse SysML v2 textual syntax directly |
-| Build time | Maven source build can take 20–30 min on first run |
-| Plugin URL | Update site URL changes with releases — always check the README.adoc |
-| `architecture.sysml` compatibility | File uses SysML v2 syntax but has not been validated by the Pilot Implementation yet — see Section 7 |
+| `sysand.so` missing | `com.sensmetry:sysand-maven-plugin` requires a proprietary native library not in public Maven — Maven build fails with `UnsatisfiedLinkError` |
+| Java 17 required | Tycho 4.x (used in the build) requires Java 17; `default-jdk` on Ubuntu 22.04 installs Java 11 |
+| No pre-built update site | GitHub releases (2026-03) contain only Jupyter kernel and KPAR library files — no Eclipse update site ZIP |
+| SysIDE graphical rendering | Free tier: syntax highlighting and validation only; diagrams require commercial licence |
 
 ---
 
-## 7. Current architecture.sysml — Compatibility Notes
-
-See `docs/tooling/sysml_compatibility_review.md` for a full review.
-
-**Summary**: `docs/sysml/architecture.sysml` uses SysML v2 inspired syntax and is
-likely structurally close to valid SysML v2, but has not been validated by the Pilot
-Implementation. Some constructs (interaction defs, occurrence defs, inline doc strings)
-may need adjustment. Review before importing.
-
----
-
-## 8. Troubleshooting
+## Troubleshooting (if revisiting Eclipse path)
 
 | Problem | Fix |
 |---|---|
-| `java: command not found` | `sudo apt install default-jdk` |
-| `plantuml: command not found` | `sudo apt install plantuml` |
-| `dot: command not found` | `sudo apt install graphviz` |
-| Eclipse build errors after import | Ensure Java 11 is the workspace JDK (Window → Preferences → Java → Installed JREs) |
-| SysML v2 files not recognised | Confirm plugin installed; try File → Open With → SysML v2 Editor |
-| Maven build fails — memory | Add `-Xmx2g` to `MAVEN_OPTS`: `export MAVEN_OPTS="-Xmx2g"` |
+| `java: command not found` | `sudo apt install openjdk-17-jdk` |
+| `sysand.so` build failure | Use Oomph installer instead of Maven from source |
 | Plugin update site not found | Check current URL in `README.adoc` of cloned repo |
+| Maven memory error | `export MAVEN_OPTS="-Xmx2g"` |
 
 ---
 

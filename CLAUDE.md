@@ -105,4 +105,5 @@ Raspberry Pi 400 (QNX 7.1 or PREEMPT_RT Linux fallback) — safety supervision
 | `requirements/traceability.csv` | 60+ requirements → design → implementation → test |
 | `hardware/wiring.md` | BOM, inter-processor wiring, power distribution |
 | `hardware/gpio_mapping.md` | GPIO pin assignments with code snippets |
-| `docs/sysml/architecture.sysml` | SysML v2 model (state machine, ports, part definitions) |
+| `docs/sysml/architecture_diagrams.md` | All architecture diagrams — BDD, IBD, package, requirements, state machine, sequence, activity (Mermaid, single source of truth) |
+| `docs/tooling/sysmlv2_pilot_setup.md` | SysML v2 tooling investigation notes and decision record |

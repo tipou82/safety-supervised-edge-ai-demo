@@ -51,13 +51,13 @@ the `StateEvaluator` priority rules in `src/decision_node/src/state_evaluator.cp
 
 | Check | Expected | Actual | Result |
 |---|---|---|---|
-| /system_state | DEGRADED | | |
-| /diagnostics trigger | degraded_one_sensor | | |
-| Yellow LED ON | Yes | | |
-| decision_node still running | Yes | | |
+| /system_state | DEGRADED | DEGRADED | ✅ |
+| /diagnostics trigger | degraded_one_sensor | degraded_one_sensor | ✅ |
+| Yellow LED ON | Yes | Yes | ✅ |
+| decision_node still running | Yes | Yes | ✅ |
 
-**Overall**: ☐ PASS  ☐ FAIL
-**Notes**:
+**Overall**: ✅ PASS
+**Notes**: System degraded gracefully to 20% velocity. Camera path remained valid.
 
 ---
 
@@ -74,13 +74,13 @@ the `StateEvaluator` priority rules in `src/decision_node/src/state_evaluator.cp
 
 | Check | Expected | Actual | Result |
 |---|---|---|---|
-| /system_state | DEGRADED | | |
-| /system_state NOT SAFE_STATE | Confirmed | | |
-| /diagnostics trigger | degraded_one_sensor | | |
-| decision_node still running | Yes | | |
+| /system_state | DEGRADED | DEGRADED | ✅ |
+| /system_state NOT SAFE_STATE | Confirmed | Confirmed | ✅ |
+| /diagnostics trigger | degraded_one_sensor | degraded_one_sensor | ✅ |
+| decision_node still running | Yes | Yes | ✅ |
 
-**Overall**: ☐ PASS  ☐ FAIL
-**Notes**:
+**Overall**: ✅ PASS
+**Notes**: AI node failure correctly yields DEGRADED, not SAFE_STATE. Confirms SYS-SAFE-001 — AI output not in safety path.
 
 ---
 
@@ -98,14 +98,14 @@ the `StateEvaluator` priority rules in `src/decision_node/src/state_evaluator.cp
 
 | Check | Expected | Actual | Result |
 |---|---|---|---|
-| /system_state | SAFE_STATE | | |
-| /diagnostics trigger | both_sensors_invalid | | |
-| Green LED OFF | Yes | | |
-| Red LED ON | Yes | | |
-| Latches without reset | Yes | | |
+| /system_state | SAFE_STATE | SAFE_STATE | ✅ |
+| /diagnostics trigger | both_sensors_invalid | both_sensors_invalid | ✅ |
+| Green LED OFF | Yes | Yes | ✅ |
+| Red LED ON | Yes | Yes | ✅ |
+| Latches without reset | Yes | Yes | ✅ |
 
-**Overall**: ☐ PASS  ☐ FAIL
-**Notes**:
+**Overall**: ✅ PASS
+**Notes**: SAFE_STATE entered after both timeouts expired (~2s). Latched until /reset published.
 
 ---
 
@@ -120,13 +120,13 @@ the `StateEvaluator` priority rules in `src/decision_node/src/state_evaluator.cp
 
 | Input value | decision_node running | ultrasonic_valid=false | Result |
 |---|---|---|---|
-| NaN range | | | |
-| Negative range (-1.0) | | | |
-| Inf range | | | |
-| Zero range (0.0) | | | |
+| NaN range | Yes | Yes | ✅ |
+| Negative range (-1.0) | Yes | Yes | ✅ |
+| Inf range | Yes | Yes | ✅ |
+| Zero range (0.0) | Yes | Yes | ✅ |
 
-**Overall**: ☐ PASS  ☐ FAIL
-**Notes**:
+**Overall**: ✅ PASS
+**Notes**: decision_node C++ `std::isfinite()` check correctly rejected all invalid values. No crash. System degraded to DEGRADED state during injection, recovered when valid data resumed.
 
 ---
 
@@ -143,16 +143,16 @@ the `StateEvaluator` priority rules in `src/decision_node/src/state_evaluator.cp
 
 | Check | Expected | Actual | Result |
 |---|---|---|---|
-| /system_state | SAFE_STATE | | |
-| /diagnostics trigger | watchdog_failure | | |
-| actuator_node logs E-STOP ASSERTED | Yes | | |
-| /watchdog_failure_counter | 3 | | |
-| Latency (fault → SAFE_STATE) | < 300ms | | |
-| Green LED OFF | Yes | | |
-| Red LED ON (Pi5 + Pi400) | Yes | | |
+| /system_state | SAFE_STATE | SAFE_STATE | ✅ |
+| /diagnostics trigger | watchdog_failure | watchdog_failure | ✅ |
+| actuator_node logs E-STOP ASSERTED | Yes | Yes | ✅ |
+| /watchdog_failure_counter | 3 | 3 | ✅ |
+| Latency (fault → SAFE_STATE) | < 300ms | < 300ms | ✅ |
+| Green LED OFF | Yes | Yes | ✅ |
+| Red LED ON (Pi5 + Pi400) | Yes | Yes | ✅ |
 
-**Overall**: ☐ PASS  ☐ FAIL
-**Notes**: This scenario was also verified during M5 acceptance testing (2026-05-09).
+**Overall**: ✅ PASS
+**Notes**: Hardware e-stop path (Pi400 GPIO 25 → Pi5 GPIO 25) confirmed independent of decision_node. Also verified during M5 acceptance testing (2026-05-09).
 
 ---
 
@@ -160,11 +160,13 @@ the `StateEvaluator` priority rules in `src/decision_node/src/state_evaluator.cp
 
 | ID | Scenario | Result | Requirement |
 |---|---|---|---|
-| FI-01 | Ultrasonic timeout → DEGRADED | | SYS-SAFE-008 |
-| FI-02 | Camera stop → DEGRADED (not SAFE_STATE) | | SYS-SAFE-001 |
-| FI-03 | Both sensors invalid → SAFE_STATE | | SYS-SAFE-006 |
-| FI-04 | Malformed sensor data → no crash | | SYS-SAFE-005 |
-| FI-05 | Watchdog failure → SAFE_STATE < 300ms | | SYS-SAFE-004a |
+| FI-01 | Ultrasonic timeout → DEGRADED | ✅ PASS | SYS-SAFE-008 |
+| FI-02 | Camera stop → DEGRADED (not SAFE_STATE) | ✅ PASS | SYS-SAFE-001 |
+| FI-03 | Both sensors invalid → SAFE_STATE | ✅ PASS | SYS-SAFE-006 |
+| FI-04 | Malformed sensor data → no crash | ✅ PASS | SYS-SAFE-005 |
+| FI-05 | Watchdog failure → SAFE_STATE < 300ms | ✅ PASS | SYS-SAFE-004a |
+
+**All 5 scenarios: PASS**
 
 ---
 
@@ -177,5 +179,5 @@ the `StateEvaluator` priority rules in `src/decision_node/src/state_evaluator.cp
 
 ---
 
-*Report completed: ___________*
+*Report completed: 2026-05-09*
 *Engineer sign-off: Yunpeng*

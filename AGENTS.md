@@ -89,6 +89,22 @@ Before a change is accepted, verify all of the following:
 
 ---
 
+## Mermaid Diagram Rules
+
+All Mermaid diagrams committed to this repository must comply with the following rules, validated against GitHub's Mermaid renderer before committing:
+
+**`requirementDiagram` syntax:**
+- `id:` fields must use only alphanumeric characters and underscores — no hyphens. Use `SYS_SAFE_007`, not `SYS-SAFE-007` (hyphens are parsed as subtraction and cause a parse error).
+- `text:` fields must contain plain ASCII only — no em dash `—`, en dash `–`, or ampersand `&`.
+- `verifymethod:` accepts exactly four values: `Test`, `Analysis`, `Inspection`, `Demonstration`. No other values (e.g. `Measurement`) are valid.
+
+**General Mermaid rules:**
+- Test all diagrams in VS Code Markdown Preview or GitHub before committing.
+- Do not use Unicode punctuation (em dash, en dash, non-breaking space) inside any Mermaid block.
+- `architecture_diagrams.md` is the single source of truth for all diagrams — do not maintain equivalent content in `.sysml` files separately.
+
+---
+
 ## Commit Discipline
 
 Use [Conventional Commits](https://www.conventionalcommits.org/) for all commit messages.

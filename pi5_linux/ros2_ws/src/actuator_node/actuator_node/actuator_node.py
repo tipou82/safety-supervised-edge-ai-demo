@@ -10,6 +10,7 @@ import lgpio
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist
+from std_msgs.msg import String
 
 GPIO_CHIP     = 4
 GPIO_ESTOP    = 25  # Pin 22 — active-low e-stop input from Pi400 GPIO 25
@@ -27,14 +28,33 @@ class ActuatorNode(Node):
         lgpio.gpio_claim_output(self._gpio, GPIO_RED_LED, 0)
 
         self._estop_active = False
+        self._sw_safe_state = False   # software SAFE_STATE from decision_node
+
         self.create_subscription(Twist, '/cmd_vel', self._on_cmd_vel, 1)
+        self.create_subscription(String, '/system_state', self._on_system_state, 5)
         self.create_timer(1.0 / ESTOP_POLL_HZ, self._poll_estop)
 
         self.get_logger().info(
             'actuator_node started — polling e-stop GPIO 25 at 100 Hz')
 
+    def _on_system_state(self, msg: String) -> None:
+        in_safe = (msg.data == 'SAFE_STATE')
+        if in_safe and not self._sw_safe_state:
+            self._sw_safe_state = True
+            self._update_red_led()
+            self.get_logger().warn('Software SAFE_STATE — red LED ON')
+        elif not in_safe and self._sw_safe_state:
+            self._sw_safe_state = False
+            self._update_red_led()
+            self.get_logger().info('Software SAFE_STATE cleared')
+
+    def _update_red_led(self) -> None:
+        # Red LED ON if hardware e-stop OR software SAFE_STATE
+        on = self._estop_active or self._sw_safe_state
+        lgpio.gpio_write(self._gpio, GPIO_RED_LED, 1 if on else 0)
+
     def _on_cmd_vel(self, msg: Twist) -> None:
-        if self._estop_active:
+        if self._estop_active or self._sw_safe_state:
             return  # drop commands in safe state
         # Motor PWM implementation deferred — no hardware in M2
 
@@ -44,12 +64,12 @@ class ActuatorNode(Node):
 
         if asserted and not self._estop_active:
             self._estop_active = True
-            lgpio.gpio_write(self._gpio, GPIO_RED_LED, 1)
+            self._update_red_led()
             self.get_logger().warn('E-STOP ASSERTED (GPIO 25 LOW) — safe state')
 
         elif not asserted and self._estop_active:
             self._estop_active = False
-            lgpio.gpio_write(self._gpio, GPIO_RED_LED, 0)
+            self._update_red_led()
             self.get_logger().info('E-stop released (GPIO 25 HIGH)')
 
     def destroy_node(self) -> None:

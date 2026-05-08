@@ -18,6 +18,7 @@ import lgpio
 import rclpy
 from rclpy.node import Node
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
+from std_msgs.msg import String
 
 try:
     import smbus2
@@ -63,6 +64,7 @@ class HealthNode(Node):
         self._wdg_ok: bool = False
         self._wdg_attempts: int = 0
         self._wdg_failures: int = 0
+        self._system_state: str = 'INIT'
 
         # Watchdog timer: fires every TARGET_SEND_MS
         self.create_timer(self.TARGET_SEND_MS / 1000.0, self._wdg_tick)
@@ -70,6 +72,9 @@ class HealthNode(Node):
         # Health publisher at 1 Hz
         self._health_pub = self.create_publisher(DiagnosticArray, '/system_health', 5)
         self.create_timer(1.0, self._publish_health)
+
+        # Subscribe to system_state to control green LED
+        self.create_subscription(String, '/system_state', self._on_system_state, 5)
 
         self.get_logger().info(
             'health_node started — I2C Q&A watchdog client, target 70 ms window')
@@ -103,6 +108,12 @@ class HealthNode(Node):
                 f'WDG I2C failed ({self._wdg_failures}): {e}')
 
         self._last_send_ms = self._ms()  # reset on both success and failure
+
+    def _on_system_state(self, msg: String) -> None:
+        self._system_state = msg.data
+        # Green LED: ON in NORMAL/WARNING/DEGRADED/INIT, OFF in SAFE_STATE
+        led_on = (msg.data != 'SAFE_STATE')
+        lgpio.gpio_write(self._gpio, self.GPIO_GREEN_LED, 1 if led_on else 0)
 
     def _publish_health(self) -> None:
         msg = DiagnosticArray()

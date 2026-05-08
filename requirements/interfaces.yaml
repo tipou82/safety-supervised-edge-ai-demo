@@ -98,10 +98,11 @@ i2c:
       description: Pi5 XORs the received seed with the fixed mask to compute the response
 
     timing:
-      window_total_ms: 50   # total window length
-      window_open_ms: 15    # closed window — response before this → too early
-      window_close_ms: 50   # window timeout — response after this → missed
-      target_send_ms: 20    # Pi5 health_node 20ms cycle fires at ~20ms (in open window)
+      window_total_ms: 30   # total window length
+      window_open_ms: 15    # closed window end — response before this → too early
+      window_close_ms: 30   # window timeout — response after this → missed
+      target_send_ms: 20    # Pi5 health_node 20ms cycle → responds at ~20ms ∈ [15,30] ✓
+      health_node_cycle_ms: 20
 
     failure_counter:
       increment_conditions:
@@ -315,14 +316,14 @@ timing:
 
   watchdog_ftti:
     requirement: SYS-SAFE-006
-    window_ms: 50
+    window_ms: 30
     fail_threshold: 3
-    detection_ms: 150      # 3 × 50ms
+    detection_ms: 90       # 3 × 30ms
     gpio_overhead_ms: 20
     poll_overhead_ms: 10
     motor_disable_ms: 30
-    total_worst_case_ms: 210
-    note: Updated from 150ms — 50ms window × 3 failures + GPIO + poll + motor
+    total_worst_case_ms: 150
+    note: 30ms window × 3 failures + GPIO + poll + motor = 150ms (within SYS-SAFE-006)
 
   proximity_ftti:
     requirement: SYS-SAFE-011

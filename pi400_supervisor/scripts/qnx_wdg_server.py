@@ -38,7 +38,7 @@ WDG_PORT = 9001
 # ── Protocol ──────────────────────────────────────────────────────────────────
 RESP_MASK       = 0xA5A5A5A5
 WINDOW_OPEN_MS  = 15.0    # closed window end  — response before this → too early
-WINDOW_CLOSE_MS = 50.0    # window timeout     — response after this → missed
+WINDOW_CLOSE_MS = 30.0    # window timeout     — response after this → missed
 FAIL_THRESHOLD  = 3
 
 # ── GPIO (Pi400 BCM2711, gpiochip0) ──────────────────────────────────────────
@@ -68,7 +68,7 @@ def make_seed_packet(seed: int, seq: int) -> bytes:
 def main() -> None:
     print("======================================================")
     print(" Pi400 Q&A Watchdog Server — M7")
-    print(" Window: 50ms (15ms closed + 35ms open)")
+    print(" Window: 30ms (15ms closed + 15ms open), health_node 20ms cycle")
     print(" Educational demonstrator — not ISO 26262 certified")
     print("======================================================")
     print()
@@ -81,7 +81,7 @@ def main() -> None:
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.bind(('0.0.0.0', WDG_PORT))
-    sock.settimeout((WINDOW_CLOSE_MS + 5.0) / 1000.0)  # 55ms receive timeout
+    sock.settimeout((WINDOW_CLOSE_MS + 5.0) / 1000.0)  # 35ms receive timeout
 
     failure_counter  = 0
     consecutive_ok   = 0

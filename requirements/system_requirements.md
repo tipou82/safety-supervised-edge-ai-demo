@@ -86,13 +86,14 @@ This document defines the system-level requirements for the Safety-Supervised Ed
 ### Safety Mechanisms
 
 **SYS-SAFE-004**: Q&A Watchdog Window Compliance
-- Window: 50ms total — 15ms closed (too early) + 35ms open (valid)
-- The Pi5 shall send a correct response within the open window: 15 ms ≤ elapsed ≤ 50 ms from seed receipt
+- Window: 30ms total — 15ms closed (too early) + 15ms open (valid)
+- The Pi5 shall send a correct response within the open window: 15 ms ≤ elapsed ≤ 30 ms from seed receipt
 - Responses before 15ms (closed window) shall increment the failure counter
-- No response by 50ms (timeout) shall increment the failure counter
+- No response by 30ms (timeout) shall increment the failure counter
 - The Pi400 shall use a monotonic clock for all window timing
-- Pi5 health_node cycles at 20ms — response targets ~20ms (within open window)
-- **Rationale**: 15ms closed window prevents spurious early responses; 35ms open window gives health_node margin
+- Pi5 health_node cycles at 20ms — response at ~20ms ∈ [15ms, 30ms] ✓
+- health_node UDP thread socket timeout 5ms — ensures pending seed checked within open window
+- **Rationale**: 15ms closed window prevents spurious early responses; 20ms health_node cycle lands at centre of open window
 - **ASIL**: B-inspired
 
 **SYS-SAFE-004a**: Q&A Watchdog Failure Counter
@@ -109,11 +110,11 @@ This document defines the system-level requirements for the Safety-Supervised Ed
 - **ASIL**: B-inspired
 
 **SYS-SAFE-006**: Safe State Latency
-- Time from first watchdog failure to motor disable shall be <210 ms
-- Breakdown: 3 × 50ms window + 20ms GPIO + 10ms poll + 30ms motor = 210ms worst case
+- Time from first watchdog failure to motor disable shall be <150 ms
+- Breakdown: 3 × 30ms window + 20ms GPIO + 10ms poll + 30ms motor = 150ms worst case
 - Safe state enforcement shall not depend on Linux cooperation
 - Pi400 shall assert GPIO 25 LOW and illuminate red LED (GPIO 22) independently of Pi5
-- **Rationale**: Bounded latency for hazard mitigation. Updated from 150ms with new 50ms window design.
+- **Rationale**: Bounded latency for hazard mitigation. 30ms window × 3 = 90ms detection.
 - **ASIL**: B-inspired
 
 **SYS-SAFE-009**: State LED Indicators

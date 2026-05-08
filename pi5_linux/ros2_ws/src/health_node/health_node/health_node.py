@@ -29,7 +29,8 @@ PI400_IP        = '192.168.50.20'
 WDG_PORT        = 9001
 RESP_MASK       = 0xA5A5A5A5
 WINDOW_OPEN_MS  = 15.0   # closed window end — must not respond before this
-WINDOW_CLOSE_MS = 50.0   # window timeout — response must arrive before this
+WINDOW_CLOSE_MS = 30.0   # window timeout — response must arrive before this
+TARGET_SEND_MS  = 20.0   # aim for 20ms (health_node 20ms cycle)
 
 
 class _WatchdogUDPThread:
@@ -50,7 +51,7 @@ class _WatchdogUDPThread:
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self._sock.bind(('0.0.0.0', port))
-        self._sock.settimeout(0.15)   # 150ms receive timeout
+        self._sock.settimeout(0.005)  # 5ms — must check pending seed within 15ms open window
 
         self._thread = threading.Thread(target=self._run, daemon=True, name='wdg_udp')
         self._thread.start()

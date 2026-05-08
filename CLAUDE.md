@@ -95,10 +95,11 @@ Raspberry Pi 400 (QNX 7.1 or PREEMPT_RT Linux fallback) — safety supervision
 
 | File | Contents |
 |---|---|
-| `docs/architecture.md` | Component descriptions, FFI measures |
-| `docs/safety_concept.md` | State machine, transitions, safety mechanisms |
-| `docs/qnx_supervisor.md` | Watchdog design, timing analysis |
-| `docs/ffi_argument.md` | FFI effectiveness analysis, production gaps |
+| `docs/safety_mechanisms.md` | **All safety mechanisms** — Q&A watchdog, e-stop, StateEvaluator, sensor monitoring, MMU isolation, LEDs, FTTI (single source of truth) |
+| `docs/architecture.md` | Component descriptions, inter-domain connections |
+| `docs/safety_concept.md` | Safety philosophy, hazard analysis, system states (brief) |
+| `docs/qnx_supervisor.md` | QNX RTOS rationale, process architecture, Linux fallback |
+| `docs/ffi_argument.md` | FFI argument narrative, effectiveness ratings, gap analysis |
 | `requirements/system_requirements.md` | 30+ functional/safety/performance requirements |
 | `requirements/safety_requirements.md` | Hazard analysis, FSRs, ASIL decomposition |
 | `requirements/interfaces.yaml` | ROS2 topics, GPIO specs, timing constraints (authoritative) |

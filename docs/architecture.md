@@ -113,22 +113,15 @@ graph TB
 
 ## Safety Architecture Patterns
 
-### 1. Independent Safety Monitor
-The QNX supervisor does NOT process AI outputs. It only monitors:
-- Aliveness (heartbeat presence)
-- Timing (heartbeat period within bounds)
-- State consistency (system health indicators)
+> Safety mechanism implementation details (watchdog protocol, state machine rules,
+> thresholds, FTTI) are in **`docs/safety_mechanisms.md`**.
 
-### 2. Deterministic Safe State
-When faults are detected, the supervisor transitions to a predefined safe state:
-- **Immediate**: Motor disable via GPIO override
-- **Deterministic**: No AI decision-making in safety path
+Three core patterns:
 
-### 3. Fail-Safe Design
-System defaults to safe state (motors disabled) on:
-- Watchdog timeout
-- Health monitor failure
-- Communication loss
+1. **Independent Safety Monitor** — Pi400 supervisor makes decisions based solely on watchdog
+   liveness. AI outputs never reach the supervisor.
+2. **Deterministic Safe State** — Rule-based StateEvaluator (C++20), no probabilistic logic.
+3. **Fail-Safe Default** — GPIO 25 asserted LOW at Pi400 boot; released only after valid Q&A.
 
 ## State Machine
 

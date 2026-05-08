@@ -1,5 +1,8 @@
 # FFI-Inspired Architectural Measures
 
+> **Safety mechanism implementation details** are in `docs/safety_mechanisms.md`.
+> This document provides the FFI argument narrative, effectiveness analysis, and gap analysis.
+
 ## Purpose
 
 This document explains how this demonstrator implements Freedom from Interference (FFI) inspired measures across the dual-processor architecture, and honestly addresses what is and is not achieved.

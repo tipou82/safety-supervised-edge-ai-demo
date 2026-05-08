@@ -55,11 +55,12 @@ public:
         // In M4: change std_msgs/String to vision_msgs/Detection2DArray.
         detections_sub_ = create_subscription<std_msgs::msg::String>(
             "/detections", 5,
-            [this](std_msgs::msg::String::SharedPtr) {
+            [this](std_msgs::msg::String::SharedPtr msg) {
                 last_detection_time_ = now();
                 if (!camera_valid_) {
                     camera_valid_ = true;
-                    RCLCPP_INFO(get_logger(), "camera_valid — /detections active");
+                    RCLCPP_INFO(get_logger(), "camera_valid — /detections active: %s",
+                        msg->data.c_str());
                 }
             });
 

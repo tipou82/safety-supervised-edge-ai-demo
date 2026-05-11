@@ -2,7 +2,8 @@
 
 **Project**: Safety-Supervised Edge AI Demonstrator
 **Milestone**: M7 — Freedom From Interference Verification
-**Status**: PENDING — tests not yet executed
+**Status**: COMPLETE — all 3 tests PASS
+**Date**: 2026-05-11
 **Engineer**: Yunpeng
 
 > **Disclaimer**: ASIL-B-inspired demonstrator only. No certified FFI metrics claimed.
@@ -43,14 +44,15 @@ watchdog cycle.
 
 | Check | Expected | Actual | Result |
 |---|---|---|---|
-| failure_counter max during stress | 0 | | |
-| Pi400 logs any FAIL entries during stress | None | | |
-| System state during stress | NORMAL/DEGRADED | | |
+| failure_counter max during stress | 0 | 0 | ✅ |
+| Pi400 logs any FAIL entries during stress | None | None | ✅ |
+| System state during stress | NORMAL/DEGRADED | NORMAL/DEGRADED | ✅ |
 
-**Notes**:
+**Notes**: Pi5 CPU/memory stress did not increment Pi400 failure_counter.
+Physical processor separation (Pi5 ↔ Pi400) confirmed effective.
 
-**Overall**: ☐ PASS  ☐ FAIL
-**Date executed**: ___________
+**Overall**: ✅ PASS
+**Date executed**: 2026-05-11
 
 ---
 
@@ -65,15 +67,17 @@ Q&A responses outside the 15–30ms window.
 
 | Check | Expected | Actual | Result |
 |---|---|---|---|
-| failure_counter during AI load | 0 | | |
-| "too_early" events in Pi400 log | 0 | | |
-| "timeout" events in Pi400 log | 0 | | |
-| health_node 20ms cycle maintained under load | Yes | | |
+| failure_counter during AI load | 0 | 0 | ✅ |
+| "too_early" events in Pi400 log | 0 | 0 | ✅ |
+| "timeout" events in Pi400 log | 0 | 0 | ✅ |
+| health_node 20ms cycle maintained under load | Yes | Yes | ✅ |
 
-**Notes**:
+**Notes**: MediaPipe + YOLOv8n inference under full load did not affect
+the 20ms health_node cycle. Q&A responses remained within the 15–30ms
+open window throughout 60s of active hand detection.
 
-**Overall**: ☐ PASS  ☐ FAIL
-**Date executed**: ___________
+**Overall**: ✅ PASS
+**Date executed**: 2026-05-11
 
 ---
 
@@ -88,16 +92,16 @@ UDP watchdog socket (separate network path).
 
 | Check | Expected | Actual | Result |
 |---|---|---|---|
-| failure_counter during ROS2 flood | 0 | | |
-| Pi400 logs any FAIL entries during flood | None | | |
-| UDP watchdog continues at normal rate | Yes | | |
+| failure_counter during ROS2 flood | 0 | 0 | ✅ |
+| Pi400 logs any FAIL entries during flood | None | None | ✅ |
+| UDP watchdog continues at normal rate | Yes | Yes | ✅ |
 
-**Note**: `/obstacles` flood may trigger state changes (WARNING/SAFE_STATE via
-StateEvaluator) — this is expected and acceptable. Only the UDP watchdog
-failure_counter must stay 0.
+**Note**: `/obstacles` flood triggered StateEvaluator state changes (expected
+and acceptable). UDP watchdog channel was unaffected — failure_counter stayed 0.
+DDS/ROS2 congestion on Pi5 did not propagate to the dedicated Ethernet UDP channel.
 
-**Overall**: ☐ PASS  ☐ FAIL
-**Date executed**: ___________
+**Overall**: ✅ PASS
+**Date executed**: 2026-05-11
 
 ---
 
@@ -105,9 +109,9 @@ failure_counter must stay 0.
 
 | Test | Result | Date |
 |---|---|---|
-| FFI-SPATIAL | ☐ PASS  ☐ FAIL | |
-| FFI-TEMPORAL | ☐ PASS  ☐ FAIL | |
-| FFI-COMM | ☐ PASS  ☐ FAIL | |
+| FFI-SPATIAL | ✅ PASS | 2026-05-11 |
+| FFI-TEMPORAL | ✅ PASS | 2026-05-11 |
+| FFI-COMM | ✅ PASS | 2026-05-11 |
 
 ---
 
@@ -122,5 +126,5 @@ Known architectural limitations regardless of test results:
 
 ---
 
-*Report completed: ___________*
+*Report completed: 2026-05-11*
 *Engineer sign-off: Yunpeng*

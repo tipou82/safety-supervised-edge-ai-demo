@@ -52,12 +52,22 @@ ROI_PAD_PX    = 25
 MJPEG_PORT    = 8080
 
 # Camera distance estimation (pinhole model).
-# Requires calibration for accuracy — these are estimates for IMX708 at 640×480.
-# FOCAL_LENGTH_PX: ~480px estimated from IMX708 66° horizontal FOV at 640px.
-# HAND_REAL_WIDTH_M: average adult hand width 8cm.
-# Accuracy: ±30% — supplementary trigger only, not a replacement for ultrasonic.
 # distance_m = (HAND_REAL_WIDTH_M × FOCAL_LENGTH_PX) / bbox_width_px
-FOCAL_LENGTH_PX   = 480.0   # pixels — calibrate with known object at known distance
+#
+# Calibration (2026-05-11, IMX708 at 640×480 preview mode):
+#   Known distance: 0.50m actual → 0.20m measured with FOCAL_LENGTH_PX=480
+#   Scale factor: 0.50 / 0.20 = 2.5
+#   Corrected: FOCAL_LENGTH_PX = 480 × 2.5 = 1200
+#   Note: IMX708 preview mode at 640×480 uses a centre crop (~30° effective FOV),
+#   giving higher focal length than the full-resolution 66° FOV estimate.
+#
+# Reference points with calibrated value:
+#   50cm → bbox ~192px (30% of frame width) ✓ verified
+#   20cm → bbox ~480px (75% of frame width)
+#   10cm → bbox >640px (saturates — hand fills frame)
+#
+# Accuracy: ±20-30% — supplementary trigger only, not a replacement for ultrasonic.
+FOCAL_LENGTH_PX   = 1200.0  # pixels — calibrated 2026-05-11 on deployed hardware
 HAND_REAL_WIDTH_M = 0.08    # metres — average adult hand width
 
 

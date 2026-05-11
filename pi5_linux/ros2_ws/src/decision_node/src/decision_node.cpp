@@ -123,11 +123,13 @@ private:
 
     void tick()
     {
-        // Expire ultrasonic if no message received within 1 s
+        // Expire ultrasonic if no valid reading received within 100ms (2× 50ms period).
+        // 100ms tolerates 1 missed reading (transient) while detecting true sensor
+        // failure within 100ms — matches SYS-SAFE-011 proximity FTTI budget.
         if (ultrasonic_valid_) {
-            if ((now() - last_obstacle_time_).seconds() > 1.0) {
+            if ((now() - last_obstacle_time_).seconds() > 0.1) {
                 ultrasonic_valid_ = false;
-                RCLCPP_WARN(get_logger(), "Ultrasonic timeout — marking invalid");
+                RCLCPP_WARN(get_logger(), "Ultrasonic timeout (100ms) — marking invalid");
             }
         }
 

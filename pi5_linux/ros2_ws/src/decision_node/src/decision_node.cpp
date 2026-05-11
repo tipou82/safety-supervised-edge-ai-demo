@@ -100,18 +100,20 @@ public:
 private:
     void on_obstacles(const sensor_msgs::msg::Range::SharedPtr& msg)
     {
-        last_obstacle_time_ = now();
         if (std::isfinite(msg->range) &&
             msg->range >= msg->min_range && msg->range <= msg->max_range) {
-            distance_m_       = msg->range;
-            ultrasonic_valid_ = true;
-        } else {
-            ultrasonic_valid_ = false;
+            // Valid reading — update distance and reset liveness timer
+            last_obstacle_time_ = now();
+            distance_m_         = msg->range;
+            ultrasonic_valid_   = true;
+            if (!system_ready_) {
+                system_ready_ = true;
+                RCLCPP_INFO(get_logger(), "system_ready — first valid ultrasonic reading");
+            }
         }
-        if (!system_ready_) {
-            system_ready_ = true;
-            RCLCPP_INFO(get_logger(), "system_ready — first valid ultrasonic reading");
-        }
+        // Invalid readings (inf, out-of-range) are silently ignored.
+        // ultrasonic_valid is only cleared by the 1s timeout in tick(),
+        // preventing transient acoustic misses from triggering DEGRADED.
     }
 
     void on_health(const diagnostic_msgs::msg::DiagnosticArray::SharedPtr& /*msg*/)

@@ -1,4 +1,5 @@
 #include <chrono>
+#include <limits>
 #include <string>
 
 #include "rclcpp/rclcpp.hpp"
@@ -70,8 +71,21 @@ public:
                 last_detection_time_ = now();
                 if (!camera_valid_) {
                     camera_valid_ = true;
-                    RCLCPP_INFO(get_logger(), "camera_valid — /detections active: %s",
-                        msg->data.c_str());
+                    RCLCPP_INFO(get_logger(), "camera_valid — /detections active");
+                }
+                // Parse camera-estimated hand distance (AI-derived, supplementary)
+                try {
+                    // Simple JSON parse for hand_distance_m field
+                    const auto& s = msg->data;
+                    auto pos = s.find("\"hand_distance_m\":");
+                    if (pos != std::string::npos) {
+                        auto val_start = s.find_first_not_of(" \t", pos + 18);
+                        camera_distance_m_ = std::stof(s.substr(val_start));
+                    } else {
+                        camera_distance_m_ = std::numeric_limits<float>::max();
+                    }
+                } catch (...) {
+                    camera_distance_m_ = std::numeric_limits<float>::max();
                 }
             });
 
@@ -131,6 +145,7 @@ private:
         input.ultrasonic_valid         = ultrasonic_valid_;
         input.distance_m               = distance_m_;
         input.camera_valid             = camera_valid_;
+        input.camera_distance_m        = camera_distance_m_;
 
         auto output = evaluator_.evaluate(input);
 
@@ -195,6 +210,8 @@ private:
             kv("system_ready",            in.system_ready       ? "true" : "false"),
             kv("watchdog_failure_counter",std::to_string(in.watchdog_failure_counter)),
             kv("manual_reset_requested",  in.manual_reset_requested ? "true" : "false"),
+            kv("camera_distance_m",       in.camera_distance_m >= 9.0f ? "no_hand"
+                                          : std::to_string(in.camera_distance_m)),
         };
 
         diagnostic_msgs::msg::DiagnosticArray msg;
@@ -210,6 +227,7 @@ private:
     bool   ultrasonic_valid_ = false;
     float  distance_m_       = 9.9f;
     bool   camera_valid_              = false;
+    float  camera_distance_m_         = std::numeric_limits<float>::max();
     bool   pending_reset_             = false;
     int    watchdog_failure_counter_  = 0;
 

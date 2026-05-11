@@ -47,13 +47,14 @@ class ObjectDetectionNode(Node):
         self._yolo    = self._init_yolo()
 
         # Latest state from hand_detection_node
-        self._hand        = False
-        self._hand_conf   = 0.0
-        self._frame       = 0
-        self._hits        = 0
-        self._obj_name    = None
-        self._obj_conf    = 0.0
-        self._last_hand_t = time.monotonic()
+        self._hand           = False
+        self._hand_conf      = 0.0
+        self._hand_distance_m = float('inf')
+        self._frame          = 0
+        self._hits           = 0
+        self._obj_name       = None
+        self._obj_conf       = 0.0
+        self._last_hand_t    = time.monotonic()
 
         self.create_subscription(String,           '/hand_detections',
                                  self._on_hand,    5)
@@ -82,15 +83,16 @@ class ObjectDetectionNode(Node):
     def _on_hand(self, msg: String) -> None:
         try:
             d = json.loads(msg.data)
-            self._hand      = d.get('hand', False)
-            self._hand_conf = d.get('hand_conf', 0.0)
-            self._frame     = d.get('frame', 0)
-            self._hits      = d.get('hits', 0)
-            self._last_hand_t = time.monotonic()
+            self._hand           = d.get('hand', False)
+            self._hand_conf      = d.get('hand_conf', 0.0)
+            self._hand_distance_m = d.get('hand_distance_m', float('inf'))
+            self._frame          = d.get('frame', 0)
+            self._hits           = d.get('hits', 0)
+            self._last_hand_t    = time.monotonic()
             if not self._hand:
-                # Hand gone — clear object detection result
                 self._obj_name = None
                 self._obj_conf = 0.0
+                self._hand_distance_m = float('inf')
         except (json.JSONDecodeError, KeyError):
             pass
 
@@ -121,13 +123,14 @@ class ObjectDetectionNode(Node):
 
     def _publish(self) -> None:
         self._det_pub.publish(String(data=json.dumps({
-            'status':      'RUNNING',
-            'hand':        self._hand,
-            'hand_conf':   self._hand_conf,
-            'object':      self._obj_name,
-            'object_conf': self._obj_conf,
-            'frame':       self._frame,
-            'detections':  self._hits,
+            'status':          'RUNNING',
+            'hand':            self._hand,
+            'hand_conf':       self._hand_conf,
+            'hand_distance_m': self._hand_distance_m,
+            'object':          self._obj_name,
+            'object_conf':     self._obj_conf,
+            'frame':           self._frame,
+            'detections':      self._hits,
         })))
 
 

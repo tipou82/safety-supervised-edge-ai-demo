@@ -24,6 +24,12 @@ EvaluatorOutput StateEvaluator::evaluate(const EvaluatorInput& in) const noexcep
     if (in.ultrasonic_valid && in.distance_m < SAFE_DISTANCE_M)
         return out(SystemState::SAFE_STATE, TriggerReason::CRITICAL_DISTANCE);
 
+    // Camera-based hand distance — AI-derived supplementary trigger.
+    // Wider threshold (0.20m vs 0.15m) accounts for ±30% estimation error.
+    // Requires camera_valid=true to avoid spurious triggers without a live camera.
+    if (in.camera_valid && in.camera_distance_m < CAMERA_SAFE_DISTANCE_M)
+        return out(SystemState::SAFE_STATE, TriggerReason::CAMERA_HAND_CRITICAL);
+
     if (!in.camera_valid && !in.ultrasonic_valid)
         return out(SystemState::SAFE_STATE, TriggerReason::BOTH_SENSORS_INVALID);
 

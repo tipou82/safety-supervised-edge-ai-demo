@@ -251,3 +251,58 @@ int main(int argc, char** argv)
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }
+
+// ── Camera hand distance (supplementary AI-derived trigger) ───────────────────
+
+TEST_F(StateEvaluatorTest, CameraHandCritical_TriggersSafeState)
+{
+    auto in = normal_input();
+    in.camera_distance_m = CAMERA_SAFE_DISTANCE_M - 0.01f;  // 0.19m < 0.20m
+    auto out = ev.evaluate(in);
+    EXPECT_EQ(out.next_state, SystemState::SAFE_STATE);
+    EXPECT_EQ(out.trigger,    TriggerReason::CAMERA_HAND_CRITICAL);
+}
+
+TEST_F(StateEvaluatorTest, CameraHandAtThreshold_NotTriggered)
+{
+    // Strictly < threshold required
+    auto in = normal_input();
+    in.camera_distance_m = CAMERA_SAFE_DISTANCE_M;  // exactly 0.20m — not triggered
+    EXPECT_NE(ev.evaluate(in).next_state, SystemState::SAFE_STATE);
+}
+
+TEST_F(StateEvaluatorTest, CameraHandCritical_RequiresCameraValid)
+{
+    // camera_valid=false — camera distance must NOT trigger SAFE_STATE
+    auto in = normal_input();
+    in.camera_valid      = false;
+    in.camera_distance_m = 0.05f;   // very close but camera invalid
+    in.ultrasonic_valid  = true;    // keep one sensor valid (→ DEGRADED, not SAFE_STATE)
+    EXPECT_EQ(ev.evaluate(in).next_state, SystemState::DEGRADED);
+}
+
+TEST_F(StateEvaluatorTest, CameraHandFarAway_NoTrigger)
+{
+    auto in = normal_input();
+    in.camera_distance_m = 1.0f;   // 1m — no trigger
+    EXPECT_EQ(ev.evaluate(in).next_state, SystemState::NORMAL);
+}
+
+TEST_F(StateEvaluatorTest, CameraHandNoHand_NoTrigger)
+{
+    // FLT_MAX = no hand detected
+    auto in = normal_input();
+    in.camera_distance_m = FLT_MAX;
+    EXPECT_EQ(ev.evaluate(in).next_state, SystemState::NORMAL);
+}
+
+TEST_F(StateEvaluatorTest, UltrasonicCritical_TakesPriorityOverCameraHand)
+{
+    // Both ultrasonic < 0.15m AND camera < 0.20m — ultrasonic fires first
+    auto in = normal_input();
+    in.distance_m        = 0.10f;
+    in.camera_distance_m = 0.15f;
+    auto out = ev.evaluate(in);
+    EXPECT_EQ(out.next_state, SystemState::SAFE_STATE);
+    EXPECT_EQ(out.trigger,    TriggerReason::CRITICAL_DISTANCE);
+}

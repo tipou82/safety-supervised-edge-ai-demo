@@ -51,6 +51,15 @@ HAND_CONF_MIN = 0.60
 ROI_PAD_PX    = 25
 MJPEG_PORT    = 8080
 
+# Camera distance estimation (pinhole model).
+# Requires calibration for accuracy — these are estimates for IMX708 at 640×480.
+# FOCAL_LENGTH_PX: ~480px estimated from IMX708 66° horizontal FOV at 640px.
+# HAND_REAL_WIDTH_M: average adult hand width 8cm.
+# Accuracy: ±30% — supplementary trigger only, not a replacement for ultrasonic.
+# distance_m = (HAND_REAL_WIDTH_M × FOCAL_LENGTH_PX) / bbox_width_px
+FOCAL_LENGTH_PX   = 480.0   # pixels — calibrate with known object at known distance
+HAND_REAL_WIDTH_M = 0.08    # metres — average adult hand width
+
 
 # ── MJPEG server ──────────────────────────────────────────────────────────────
 
@@ -200,14 +209,22 @@ class HandDetectionNode(Node):
                     roi_msg.data   = jpeg.tobytes()
                     self._roi_pub.publish(roi_msg)
 
+        # Estimate hand distance using pinhole model (AI-derived, ±30% accuracy)
+        hand_distance_m = float('inf')
+        if hand and (x2 - x1) > 0:
+            bbox_width_px = float(x2 - x1)
+            hand_distance_m = round(
+                (HAND_REAL_WIDTH_M * FOCAL_LENGTH_PX) / bbox_width_px, 3)
+
         # Publish detection info
         self._det_pub.publish(String(data=json.dumps({
-            'status':    'RUNNING',
-            'hand':      hand,
-            'hand_conf': hand_conf,
-            'bbox':      [x1, y1, x2, y2],
-            'frame':     self._frame_count,
-            'hits':      self._hit_count,
+            'status':         'RUNNING',
+            'hand':           hand,
+            'hand_conf':      hand_conf,
+            'hand_distance_m': hand_distance_m,  # FLT_MAX (inf) = no hand
+            'bbox':           [x1, y1, x2, y2],
+            'frame':          self._frame_count,
+            'hits':           self._hit_count,
         })))
 
         # MJPEG annotation

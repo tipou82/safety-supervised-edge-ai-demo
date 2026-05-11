@@ -124,6 +124,16 @@ This document defines the system-level requirements for the Safety-Supervised Ed
 - Pi400 shall be able to assert the red LED independently of Pi5
 - **Priority**: High
 
+**SYS-SAFE-012**: Camera-Based Hand Distance — Supplementary SAFE_STATE Trigger
+- When `camera_valid=true` AND camera-estimated hand distance < 0.20m, the system shall enter SAFE_STATE
+- Camera distance is estimated using the pinhole model: `distance = (hand_width × focal_length) / bbox_width_px`
+- This is an AI-derived measurement (depends on MediaPipe bounding box) with ±30% accuracy
+- Threshold 0.20m provides wider margin than ultrasonic SAFE_DISTANCE (0.15m) to account for lower accuracy
+- This is a **supplementary** trigger — it does NOT replace the ultrasonic safety path (SYS-SAFE-011)
+- **Requires calibration**: FOCAL_LENGTH_PX must be validated on the deployed hardware
+- **ASIL consideration**: AI-derived input — weaker safety argument than ultrasonic; documented limitation
+- **Priority**: High
+
 **SYS-SAFE-010**: Emergency Stop GPIO
 - Emergency stop shall use GPIO 25: Pi400 GPIO 25 (Pin 22) output → Pi5 GPIO 25 (Pin 22) input
 - Signal shall be active-low (0V = emergency stop active)

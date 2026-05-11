@@ -7,6 +7,7 @@
 #   2. Publishes /watchdog_failure_counter (std_msgs/Int32) — read by decision_node.
 #   3. Green LED (GPIO 17): ON except in SAFE_STATE.
 #   4. Yellow LED (GPIO 27): ON in DEGRADED state.
+#   5. Buzzer (GPIO 18): ON in DEGRADED state (same as yellow LED).
 #   5. Publishes /system_health (diagnostic_msgs/DiagnosticArray) at 1 Hz.
 #
 # Educational demonstrator — not ISO 26262 certified.
@@ -171,6 +172,7 @@ class HealthNode(Node):
     GPIO_CHIP       = 4   # Pi5 RP1 southbridge
     GPIO_GREEN_LED  = 17  # Pin 11
     GPIO_YELLOW_LED = 27  # Pin 13
+    GPIO_BUZZER     = 18  # Pin 12 — active 3.3V buzzer, ON in DEGRADED (same as yellow LED)
 
     def __init__(self):
         super().__init__('health_node')
@@ -179,7 +181,8 @@ class HealthNode(Node):
         self._gpio = lgpio.gpiochip_open(self.GPIO_CHIP)
         lgpio.gpio_claim_output(self._gpio, self.GPIO_GREEN_LED,  1)
         lgpio.gpio_claim_output(self._gpio, self.GPIO_YELLOW_LED, 0)
-        self.get_logger().info('Green LED ON (GPIO 17), Yellow LED OFF (GPIO 27)')
+        lgpio.gpio_claim_output(self._gpio, self.GPIO_BUZZER,     0)
+        self.get_logger().info('Green LED ON (GPIO 17), Yellow LED OFF (GPIO 27), Buzzer OFF (GPIO 18)')
 
         # UDP watchdog client
         self._wdg = _WatchdogUDPThread(PI400_IP, WDG_PORT)
@@ -234,10 +237,11 @@ class HealthNode(Node):
     def _on_system_state(self, msg: String) -> None:
         self._last_system_state_t = time.monotonic()
         self._system_state = msg.data
-        green  = (msg.data != 'SAFE_STATE')
-        yellow = (msg.data == 'DEGRADED')
-        lgpio.gpio_write(self._gpio, self.GPIO_GREEN_LED,  1 if green  else 0)
-        lgpio.gpio_write(self._gpio, self.GPIO_YELLOW_LED, 1 if yellow else 0)
+        green    = (msg.data != 'SAFE_STATE')
+        degraded = (msg.data == 'DEGRADED')
+        lgpio.gpio_write(self._gpio, self.GPIO_GREEN_LED,  1 if green    else 0)
+        lgpio.gpio_write(self._gpio, self.GPIO_YELLOW_LED, 1 if degraded else 0)
+        lgpio.gpio_write(self._gpio, self.GPIO_BUZZER,     1 if degraded else 0)
 
     # ── Publishers ────────────────────────────────────────────────────────────
 
@@ -280,8 +284,10 @@ class HealthNode(Node):
         self._wdg.stop()
         lgpio.gpio_write(self._gpio, self.GPIO_GREEN_LED,  0)
         lgpio.gpio_write(self._gpio, self.GPIO_YELLOW_LED, 0)
+        lgpio.gpio_write(self._gpio, self.GPIO_BUZZER,     0)
         lgpio.gpio_free(self._gpio, self.GPIO_GREEN_LED)
         lgpio.gpio_free(self._gpio, self.GPIO_YELLOW_LED)
+        lgpio.gpio_free(self._gpio, self.GPIO_BUZZER)
         lgpio.gpiochip_close(self._gpio)
         super().destroy_node()
 

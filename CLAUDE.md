@@ -98,6 +98,7 @@ Raspberry Pi 400 (QNX 7.1 or PREEMPT_RT Linux fallback) — safety supervision
 | `docs/safety_analysis/HARA.md` | Hazard Analysis and Risk Assessment — S/E/C ratings, ASIL determination, safety goals, gap analysis |
 | `docs/safety_analysis/FMEA.md` | Failure Mode and Effects Analysis — 63 failure modes across 6 safety mechanisms, SPOF register, DC summary |
 | `docs/safety_analysis/ISO26262_gap_analysis.md` | ISO 26262 gap analysis — part-by-part assessment, 18 major gaps, 4-phase production path |
+| `docs/safety_analysis/AUTOSAR_E2E_comparison.md` | AUTOSAR E2E profile mapping — UDP Q&A vs E2EProfile01/WdgM, CRC analysis, upgrade path |
 | `docs/safety_mechanisms.md` | **All safety mechanisms** — Q&A watchdog, e-stop, StateEvaluator, sensor monitoring, MMU isolation, LEDs, FTTI (single source of truth) |
 | `docs/architecture.md` | Component descriptions, inter-domain connections |
 | `docs/safety_concept.md` | Safety philosophy, hazard analysis, system states (brief) |

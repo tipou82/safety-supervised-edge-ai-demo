@@ -175,29 +175,30 @@ This demonstrator implements ASIL-B-inspired safety requirements as an education
 
 ## Safety Mechanisms
 
-### SM-001: Watchdog Timer
+### SM-001: Q&A Watchdog (UDP, 30ms window)
 
-**Type**: Detection mechanism for temporal faults
+**Type**: Detection mechanism for temporal faults and liveness
 
-**Implementation**: QNX supervisor monitors GPIO heartbeat, timeout = 500 ms
+**Implementation**: Pi400 qnx_wdg_server sends seeds via UDP; Pi5 health_node responds
+within 15–30ms open window; failure_counter ≥ 3 → SAFE_STATE (GPIO 25 + red LED).
+Flow check gate: health_node withholds response if pipeline nodes miss deadlines.
+E2E protection: CRC-16/CCITT-FALSE + sequence counter on all messages.
 
-**Fault Coverage**: Linux kernel panic, process hang, timing violation, power loss on Linux board
+**Fault Coverage**: Pi5 process hang, timing violation, pipeline node failure, Q&A response out of window
 
-**Diagnostic Coverage**: High (>99% for covered faults)
+**Diagnostic Coverage**: High — Q&A requires correct value + timing + seq + CRC
 
-**Limitation**: Does not detect "babbling idiot" if heartbeat continues but system is malfunctioning
+**Limitation**: UDP channel relies on Linux network stack — weaker than hardware I2C (DD-002 documented)
 
-### SM-002: CRC Integrity Check
+### SM-002: CRC-16 Integrity Check on UDP Q&A
 
-**Type**: Detection mechanism for data corruption
+**Type**: Detection mechanism for data corruption in watchdog channel
 
-**Implementation**: CRC32 checksum on shared memory messages
+**Implementation**: CRC-16/CCITT-FALSE over {seed, seq} on both seed and response packets
 
-**Fault Coverage**: Bit flips, memory corruption, software write errors
+**Fault Coverage**: Bit flips in UDP payload, replayed or reordered packets (via seq counter)
 
-**Diagnostic Coverage**: >99.999% (Hamming distance of CRC32)
-
-**Limitation**: Does not detect malicious tampering (no cryptographic authentication)
+**Diagnostic Coverage**: CRC-16 detects all 1-bit and 2-bit errors in payload
 
 ### SM-003: State Consistency Check
 
@@ -251,51 +252,29 @@ This demonstrator uses ASIL-B-inspired measures without formal decomposition. Fo
 
 ## Safety Validation Plan
 
-### Fault Injection Tests
+### Fault Injection Tests (M6 — all PASS 2026-05-09)
 
-**FI-001**: Heartbeat Stop
-- Stop Health Monitor process
-- Verify watchdog timeout detection <500 ms
-- Verify safe state transition <150 ms
+**FI-001**: Ultrasonic timeout → DEGRADED — PASS
+**FI-002**: Camera stop → DEGRADED (not SAFE_STATE, confirms AI boundary) — PASS
+**FI-003**: Both sensors invalid → SAFE_STATE — PASS
+**FI-004**: Malformed sensor data → no crash (isfinite guard) — PASS
+**FI-005**: health_node stop → Q&A failures → SAFE_STATE via Pi400 GPIO 25 — PASS
 
-**FI-002**: Heartbeat Corruption
-- Send invalid heartbeat pattern (stuck-at-high)
-- Verify timeout detection (no edge transitions)
+See `docs/fault_injection_report.md` for full results.
 
-**FI-003**: Shared Memory Corruption
-- Flip bits in CRC field
-- Verify supervisor detects invalid CRC
-- Verify safe state transition
+### Timing Analysis Tests (M7 — all PASS 2026-05-11)
 
-**FI-004**: Linux Kernel Panic
-- Trigger kernel oops or panic via module
-- Verify heartbeat stops
-- Verify safe state transition
+**TA-001**: End-to-End FTTI — watchdog 140ms + proximity 80ms — both < 150ms — PASS
+**TA-002**: Watchdog window — 30ms (15ms closed + 15ms open); health_node 20ms cycle — PASS
+**TA-003**: Interference test — AI inference load; Q&A responses within window — PASS (FFI-TEMPORAL)
 
-**FI-005**: Supervisor CPU Starvation
-- Launch CPU stress on QNX domain
-- Verify supervisor cycle time remains <12 ms
-- Verify safety latency within budget
+See `docs/ffi_verification_report.md` for full results.
 
-### Timing Analysis Tests
+### Functional Tests (M3/M5/M7 — all PASS)
 
-**TA-001**: End-to-End Latency
-- Measure heartbeat stop to motor disable
-- Verify <150 ms at 95th percentile
-
-**TA-002**: Supervisor Cycle Time
-- Measure watchdog server cycle time over 1 hour
-- Verify 10 ms ± 1 ms, no outliers >12 ms
-
-**TA-003**: Interference Test
-- Run AI inference at maximum load on Linux
-- Verify no impact on QNX supervisor timing
-
-### Functional Tests
-
-**FT-001**: Startup Sequence
-- Power on system, verify safe state default
-- Verify heartbeat required before operation enabled
+**FT-001**: Startup — Pi400 asserts GPIO 25 LOW at boot; released after first valid Q&A — PASS
+**FT-002**: State transitions — 33 gtest + hardware verified — PASS
+**FT-003**: Manual reset — /reset held pending until all_clear — PASS
 
 **FT-002**: State Transitions
 - Exercise all state transitions: NORMAL → WARNING → DEGRADED → SAFE_STATE

@@ -1,6 +1,7 @@
 # FFI-Inspired Architectural Measures
 
-> **Safety mechanism implementation details** are in `docs/safety_mechanisms.md`.
+> **Educational demonstrator — ASIL-B-inspired FFI measures only. Not ISO 26262 certified.**
+> Safety mechanism implementation details are in `docs/safety_mechanisms.md`.
 > This document provides the FFI argument narrative, effectiveness analysis, and gap analysis.
 
 ## Purpose

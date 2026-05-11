@@ -1,5 +1,7 @@
 # System Architecture
 
+> **Educational demonstrator — ASIL-B-inspired patterns only. Not ISO 26262 certified. Not production-ready.**
+
 ## Overview
 
 This demonstrator implements a dual-processor architecture with FFI-inspired separation between the AI perception domain (Linux/ROS2) and the safety monitoring domain (QNX-inspired supervisor).

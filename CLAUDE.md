@@ -95,6 +95,7 @@ Raspberry Pi 400 (QNX 7.1 or PREEMPT_RT Linux fallback) — safety supervision
 
 | File | Contents |
 |---|---|
+| `docs/safety_analysis/HARA.md` | Hazard Analysis and Risk Assessment — S/E/C ratings, ASIL determination, safety goals, gap analysis |
 | `docs/safety_mechanisms.md` | **All safety mechanisms** — Q&A watchdog, e-stop, StateEvaluator, sensor monitoring, MMU isolation, LEDs, FTTI (single source of truth) |
 | `docs/architecture.md` | Component descriptions, inter-domain connections |
 | `docs/safety_concept.md` | Safety philosophy, hazard analysis, system states (brief) |

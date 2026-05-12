@@ -69,7 +69,7 @@ i2c:
     description: Challenge/response watchdog between Pi5 (I2C master) and Pi400 (I2C slave)
     direction: Bidirectional (Pi5 reads seed, Pi5 writes response)
     pi5_role: I2C master
-    pi400_role: I2C slave, address 0x40
+    pi400_role: UDP server port 9001 (I2C BSC slave not feasible on BCM2711 — DD-002)
     pi5_gpio_sda: 2  # Pin 3
     pi5_gpio_scl: 3  # Pin 5
     pi400_gpio_sda: 2  # Pin 3

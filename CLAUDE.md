@@ -100,6 +100,7 @@ Raspberry Pi 400 (QNX 7.1 or PREEMPT_RT Linux fallback) — safety supervision
 | `docs/safety_analysis/ISO26262_gap_analysis.md` | ISO 26262 gap analysis — part-by-part assessment, 18 major gaps, 4-phase production path |
 | `docs/safety_analysis/AUTOSAR_E2E_comparison.md` | AUTOSAR E2E profile mapping — UDP Q&A vs E2EProfile01/WdgM, CRC analysis, upgrade path |
 | `docs/safety_analysis/FTA.md` | Fault Tree Analysis — FTA-1 (unsafe speed), FTA-2 (silent supervisor failure), MCS, CCF |
+| `docs/interview_brief.md` | 3-page portfolio brief — architecture, safety depth, interview talking points |
 | `docs/safety_mechanisms.md` | **All safety mechanisms** — Q&A watchdog, e-stop, StateEvaluator, sensor monitoring, MMU isolation, LEDs, FTTI (single source of truth) |
 | `docs/architecture.md` | Component descriptions, inter-domain connections |
 | `docs/safety_concept.md` | Safety philosophy, hazard analysis, system states (brief) |

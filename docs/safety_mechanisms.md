@@ -12,7 +12,8 @@ implementation details link here.
 
 ## Architecture Safety Boundaries
 
-Two physically separate processors enforce **Freedom from Interference (FFI)**:
+Two physically separate processors demonstrate **FFI-inspired architectural measures**
+(Freedom from Interference — not certified, ASIL-B-inspired patterns only):
 
 ```
 Pi5 (Linux / ROS2)          ← AI perception domain (development)

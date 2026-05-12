@@ -48,9 +48,9 @@ This document defines the system-level requirements for the Safety-Supervised Ed
 - **Priority**: Critical (safety-critical function)
 
 **SYS-FUNC-007**: Q&A Watchdog Monitoring (Pi400)
-- The Pi400 supervisor shall operate as I2C slave at address `0x40` (GPIO 2/3)
+- The Pi400 supervisor shall operate as a UDP server on port 9001 over dedicated Ethernet
 - The supervisor shall generate a new 32-bit random seed each watchdog cycle
-- The supervisor shall validate each Pi5 response: value AND timing (50–100 ms window)
+- The supervisor shall validate each Pi5 response: value AND timing (30ms window, 15ms closed + 15ms open)
 - failure_counter: +1 on wrong answer, too early, or timeout; −1 after 2 consecutive correct (min 0)
 - The supervisor shall trigger SAFE_STATE when failure_counter ≥ 3
 - **Priority**: Critical (safety-critical function)
@@ -178,13 +178,15 @@ This document defines the system-level requirements for the Safety-Supervised Ed
 
 ## Interface Requirements
 
-**SYS-IF-001**: I2C Q&A Watchdog Interface
-- I2C bus shall use GPIO 2 (SDA) and GPIO 3 (SCL) on both Pi5 and Pi400
-- Pi5 shall be I2C master; Pi400 shall be I2C slave at address `0x40`
-- Bus speed: 100 kHz; external 4.7 kΩ pull-ups to 3.3V on SDA and SCL
-- Seed register: `0x00` (Pi400 write, Pi5 read, uint32_t)
-- Response register: `0x01` (Pi5 write, Pi400 validate, uint32_t)
+**SYS-IF-001**: UDP Q&A Watchdog Interface
+- Transport: UDP port 9001 over dedicated Ethernet (192.168.50.x)
+- Pi400 role: UDP server (binds 0.0.0.0:9001)
+- Pi5 role: UDP client (health_node sends responses, receives seeds and status)
+- Seed packet: `{"type":"seed","seed":<uint32>,"seq":<uint8>,"crc":<uint16>}`
+- Response packet: `{"type":"response","seed":<uint32>,"response":<uint32>,"seq":<uint8>,"crc":<uint16>}`
 - Response algorithm: `response = seed XOR 0xA5A5A5A5`
+- E2E protection: CRC-16/CCITT-FALSE + uint8 sequence counter
+- Note: I2C BSC slave not feasible on BCM2711 (Pi400) — see DD-002
 
 **SYS-IF-002**: Emergency Stop GPIO
 - Emergency stop shall use Pi400 GPIO 25 (Pin 22) → Pi5 GPIO 25 (Pin 22)

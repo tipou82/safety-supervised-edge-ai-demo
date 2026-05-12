@@ -82,7 +82,7 @@ graph TB
 ### QNX-Inspired Domain (Raspberry Pi 400 or Linux Fallback)
 
 **Watchdog Server**
-- Operates as I2C slave (address `0x40`, GPIO 2/3) — Q&A watchdog monitor
+- Acts as UDP server (port 9001, dedicated Ethernet) — QOperates as I2C slave (address `0x40`, GPIO 2/3) — Q&A watchdog monitorA watchdog monitor
 - Issues seeds, validates Pi5 responses for timing (50–100 ms window) and correctness
 - Manages failure counter: +1 on bad/late/early response, −1 after 2 consecutive correct
 - Triggers SAFE_STATE when failure counter reaches 3

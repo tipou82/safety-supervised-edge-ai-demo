@@ -19,7 +19,7 @@ setup(
     maintainer_email='yangyunpeng@gmail.com',
     description='Launch package for safety-supervised edge AI demonstrator',
     license='MIT',
-    tests_require=['pytest'],
+    extras_require={'test': ['pytest']},
     entry_points={
         'console_scripts': [],
     },

@@ -55,7 +55,7 @@ Full state machine rules in `docs/safety_mechanisms.md` SM-3.
 |---|---|---|---|---|---|
 | BOOTING / INIT | Starting up, watchdog not yet healthy | 0.0 | ON (init) | OFF | OFF |
 | NORMAL | Watchdog healthy, sensors valid, clear path | 1.0 | ON | OFF | OFF |
-| WARNING | Obstacle in warning range (ultrasonic) | 0.5 | OFF | ON | OFF |
+| WARNING | Obstacle in warning range (ultrasonic) | 0.2 | OFF | ON | OFF |
 | DEGRADED | One sensor path invalid | 0.2 | OFF | ON | OFF |
 | SAFE_STATE | Critical fault — halted | 0.0 | OFF | OFF | ON |
 
@@ -77,7 +77,7 @@ Manual `/reset` is required after all conditions are cleared.
 Motor speed is controlled by `velocity_scale` (0.0 = stop, 1.0 = full speed):
 
 - **NORMAL**: `velocity_scale = 1.0` — motor runs at full speed if Motor Switch is ON.
-- **WARNING** (obstacle in warning range): `velocity_scale = 0.5` — speed reduced.
+- **WARNING** (obstacle in warning range): `velocity_scale = 0.2` — speed reduced.
 - **SAFE_STATE**: `velocity_scale = 0.0` — motor stopped, red LED ON.
 - **BOOTING / INIT**: `velocity_scale = 0.0` — motor off until release criterion met.
 
@@ -96,7 +96,7 @@ motor rotates only if the software state allows it.
 |---|---|---|---|---|
 | Boot (default) | — | BOOTING/INIT | 0.0 | Green (init) |
 | All startup criteria met | INIT | NORMAL | 1.0 | Green ON |
-| Obstacle in warning range | NORMAL | WARNING | 0.5 | Yellow ON |
+| Obstacle in warning range | NORMAL | WARNING | 0.2 | Yellow ON |
 | Warning condition cleared | WARNING | NORMAL | 1.0 | Green ON |
 | Obstacle in near range (<0.15 m ultrasonic) | ANY | SAFE_STATE | 0.0 | Red ON |
 | Pi400 watchdog fault (failure_counter ≥ 3) | ANY | SAFE_STATE | 0.0 | Red ON |

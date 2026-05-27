@@ -179,7 +179,7 @@ INIT → NORMAL → WARNING (obstacle <0.50m)
 |---|---|---|---|---|
 | INIT | 0% | ON (init) | OFF | OFF |
 | NORMAL | 100% | ON | OFF | OFF |
-| WARNING | 50% | OFF | ON | OFF |
+| WARNING | 20% | OFF | ON | OFF |
 | DEGRADED | 20% | OFF | ON | OFF |
 | SAFE_STATE | 0% | OFF | OFF | ON |
 

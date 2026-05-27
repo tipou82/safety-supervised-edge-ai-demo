@@ -68,7 +68,7 @@ topics:
     state_mapping:
       INIT: 0.0
       NORMAL: 1.0
-      WARNING: 0.5
+      WARNING: 0.2
       DEGRADED: 0.2
       SAFE_STATE: 0.0  # forced override — decision_node value ignored
     safety_relevant: true
@@ -179,7 +179,9 @@ gpio:
     active_state: HIGH = LED ON
 
   yellow_led:
-    description: DEGRADED state indicator (one of two sensor paths degraded)
+    description: WARNING and DEGRADED state indicator
+    asserted_in: WARNING (obstacle in warning range), DEGRADED (one sensor path invalid)
+    off_in: INIT, NORMAL, SAFE_STATE
     pi5_gpio: 27
     physical_pin: 13
     driven_by: health_node

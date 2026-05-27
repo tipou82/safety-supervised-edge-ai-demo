@@ -132,7 +132,7 @@ Evaluated at **50 Hz** (20ms) in `decision_node`. Pure function — no side effe
 |---|---|---|
 | INIT | Starting up, awaiting first sensor data | 0.0 |
 | NORMAL | Both sensors valid, no obstacle close | 1.0 |
-| WARNING | Obstacle within 0.50m | 0.5 |
+| WARNING | Obstacle within 0.50m | 0.2 |
 | DEGRADED | Exactly one sensor path valid | 0.2 |
 | SAFE_STATE | Critical fault — motors disabled | 0.0 |
 
@@ -240,8 +240,8 @@ partitioning requires a qualified hypervisor or separate processors.
 
 | LED | GPIO (Pi5) | Driver | Condition |
 |---|---|---|---|
-| Green | GPIO 17 (Pin 11) | health_node | ON in INIT/NORMAL/WARNING/DEGRADED; OFF in SAFE_STATE |
-| Yellow | GPIO 27 (Pin 13) | health_node | ON in DEGRADED only |
+| Green | GPIO 17 (Pin 11) | health_node | ON in INIT and NORMAL; OFF in WARNING/DEGRADED/SAFE_STATE |
+| Yellow | GPIO 27 (Pin 13) | health_node | ON in WARNING and DEGRADED; OFF otherwise |
 | Red | GPIO 22 (Pin 15) | actuator_node OR Pi400 safe_state_ctrl | ON in SAFE_STATE |
 
 **Red LED wired-OR circuit**: Pi5 GPIO 22 and Pi400 GPIO 22 each drive through a

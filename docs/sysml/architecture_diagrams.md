@@ -58,7 +58,7 @@ classDiagram
     class LedBuzzerOutput {
         <<block>>
         +green_gpio : 17  NORMAL indicator
-        +yellow_gpio : 27 DEGRADED indicator
+        +yellow_gpio : 27 WARNING and DEGRADED indicator
         +red_gpio : 22    SAFE STATE wired-OR
         +buzzer_gpio : 18 WARNING and DEGRADED
     }
@@ -362,7 +362,7 @@ requirementDiagram
 ### 6. State Machine Diagram
 
 Evaluated at 50 Hz by StateEvaluator C++20. SAFE_STATE latches — manual reset required.
-Buzzer: ON in WARNING and DEGRADED. Yellow LED: ON in DEGRADED only.
+Buzzer: ON in WARNING and DEGRADED. Yellow LED: ON in WARNING and DEGRADED.
 
 ```mermaid
 stateDiagram-v2
@@ -393,10 +393,10 @@ stateDiagram-v2
         [*] : vel 1.0  Green ON
     }
     state WARNING {
-        [*] : vel 0.5  Green ON  Buzzer ON
+        [*] : vel 0.2  Yellow ON  Buzzer ON
     }
     state DEGRADED {
-        [*] : vel 0.2  Green ON  Yellow ON  Buzzer ON
+        [*] : vel 0.2  Yellow ON  Buzzer ON
     }
     state SAFE_STATE {
         [*] : vel 0.0  Green OFF  Red ON  Latches

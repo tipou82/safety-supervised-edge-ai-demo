@@ -140,8 +140,8 @@ This document defines the system-level requirements for the Safety-Supervised Ed
 - **ASIL**: B-inspired
 
 **SYS-SAFE-009**: State LED Indicators
-- Green LED (Pi5 GPIO 17): shall be illuminated in NORMAL state; ON during INIT as initialization indicator
-- Yellow LED (Pi5 GPIO 27): shall be illuminated in WARNING and DEGRADED states
+- Green LED (Pi5 GPIO 17): shall be illuminated in INIT and NORMAL states only; OFF in WARNING, DEGRADED, SAFE_STATE
+- Yellow LED (Pi5 GPIO 27): shall be illuminated in WARNING and DEGRADED states; OFF in INIT, NORMAL, SAFE_STATE
 - Red LED (wired-OR: Pi5 GPIO 22 / Pi400 GPIO 22): shall be illuminated in SAFE_STATE
 - Pi400 shall be able to assert the red LED independently of Pi5
 - **Priority**: High
@@ -196,8 +196,8 @@ This document defines the system-level requirements for the Safety-Supervised Ed
 - **ASIL**: B-inspired
 
 **SYS-SAFE-008**: Degradation Management
-- System shall reduce velocity limits in WARNING state (50% nominal)
-- System shall operate on ultrasonic-only in DEGRADED state (20% nominal)
+- System shall reduce velocity limits in WARNING state (20% nominal, velocity_scale = 0.2)
+- System shall operate on ultrasonic-only in DEGRADED state (20% nominal, velocity_scale = 0.2)
 - **Rationale**: Graceful degradation reduces hazard severity
 
 ## Performance Requirements

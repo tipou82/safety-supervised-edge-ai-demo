@@ -36,11 +36,85 @@ fusion across heterogeneous compute platforms.
 | Grove Ultrasonic Ranger (GPIO 23) | Precise proximity measurement (2–350 cm) |
 | Traffic-light LED module (GPIO 17/27/22) | System state indicators |
 | Active buzzer (GPIO 18) | Audible alerts |
+| DRV8833 dual H-bridge motor driver | Controls AEDIKO TT DC gear motor — visible actuator demonstrator |
+| AEDIKO TT DC gear motor with wheel | Visualises velocity scaling and safe-state stop behaviour |
+| 4×AA battery box with switch | Dedicated motor supply (Motor Switch) — isolated from Raspberry Pi power |
 
 **Inter-processor wiring:**
 - UDP Q&A watchdog over dedicated Ethernet `192.168.50.10 ↔ 192.168.50.20`
 - E-stop: Pi400 GPIO 25 → Pi5 GPIO 25 (active-low direct wire)
 - Red LED: wired-OR via 1N4148 diodes (both sides can assert independently)
+
+**Motor actuator wiring:**
+- Pi5 GPIO 12 (Pin 32) → DRV8833 IN1; Pi5 GPIO 16 (Pin 36) → DRV8833 IN2
+- 4×AA battery positive → DRV8833 VCC (via Motor Switch); battery negative → DRV8833 GND
+- Pi5 GND (Pin 34 or 39) → DRV8833 GND (common ground — mandatory)
+- DRV8833 OUT1/OUT2 → AEDIKO TT motor terminals
+
+---
+
+## Current Hardware Concept
+
+### Main Switch (shared power strip)
+
+Both the Raspberry Pi 5 and Raspberry Pi 400 are powered through the **same power strip**,
+controlled by one **Main Switch**.
+
+- **Main Switch ON** → Pi5 boots (Linux/ROS2), Pi400 boots (supervisor/watchdog).
+- **Main Switch OFF** → both processors power off simultaneously.
+- The Main Switch is not a software-controlled signal — it is a physical hardware switch on
+  the shared power strip.
+
+### Motor Switch (4×AA battery box)
+
+The DRV8833 motor driver and AEDIKO TT motor are powered **separately** from a 4×AA battery
+box. The battery box has its own switch — the **Motor Switch**.
+
+- **Motor Switch ON** → motor supply is available to DRV8833 VCC.
+- **Motor Switch OFF** → motor supply is removed; motor cannot rotate regardless of software.
+- Raspberry Pi GPIO pins drive only the DRV8833 **logic inputs** (IN1/IN2) — never the motor
+  supply rail.
+- Pi GND, 4×AA battery negative, and DRV8833 GND are **all connected together** (common
+  ground reference — mandatory for correct logic levels).
+
+> ⚠️ **Safety note**: Never connect the 4×AA battery positive to any Raspberry Pi GPIO pin.
+> GPIO pins are 3.3 V logic only and cannot withstand motor supply voltages.
+
+### Startup and Operating Concept
+
+The Main Switch powers both processors through a shared power strip. After boot, the system is
+released to NORMAL only if the application nodes, sensor validity checks and watchdog supervision
+are all healthy. The motor actuator is powered separately by a 4×AA battery box through a Motor
+Switch and controlled by the Pi5 through a DRV8833 driver. The motor represents a simplified
+robot actuator and is used to visualise velocity scaling and safe-state stop behaviour.
+
+**Boot sequence (Main Switch ON):**
+1. Pi400 boots, asserts e-stop GPIO 25 LOW (fail-safe), red LED ON.
+2. Pi5 boots, ROS2 nodes start; motor command defaults to `velocity_scale = 0.0`.
+3. health_node begins UDP Q&A watchdog exchange with Pi400 supervisor.
+4. Once Q&A watchdog is healthy, sensors are valid and all nodes are alive → system enters NORMAL.
+5. Pi400 releases e-stop (GPIO 25 HIGH), green LED ON.
+6. In NORMAL with Motor Switch ON: motor rotates at `velocity_scale = 1.0`.
+
+**If startup criteria are not met**, the system remains in SAFE_STATE.
+No auto-release. Manual `/reset` required after fault conditions are cleared.
+
+### Visible Actuator Demonstration with DRV8833 and TT Motor
+
+The DRV8833 module ([Amazon DE B076KFRJWL](https://www.amazon.de/dp/B076KFRJWL)) drives one
+AEDIKO TT DC gear motor with wheel. This is used solely as a **visible actuator** to demonstrate
+`velocity_scale` behaviour and safe-state stop — not as a safety-certified actuator.
+
+| System State | velocity_scale | Motor behaviour (Motor Switch ON) |
+|---|---|---|
+| BOOTING / INIT | 0.0 | Motor off — default at boot |
+| NORMAL | 1.0 | Motor rotates at full speed |
+| WARNING (obstacle in warning range) | 0.5 | Motor rotates at reduced speed |
+| SAFE_STATE (near range / watchdog fault / init fail) | 0.0 | Motor stopped |
+
+Safe State has priority over any velocity command. If SAFE_STATE is requested due to near-range
+detection, watchdog fault, invalid startup release or critical monitoring fault, the actuator
+command shall force `velocity_scale` to `0.0` and the red LED shall be activated.
 
 ---
 
@@ -48,6 +122,11 @@ fusion across heterogeneous compute platforms.
 
 ```mermaid
 graph TB
+    subgraph MainSwitch["Main Switch (shared power strip)"]
+        PS5["Pi5 USB-C PSU"]
+        PS400["Pi400 USB-C PSU"]
+    end
+
     subgraph Pi5["Raspberry Pi 5 — Linux / ROS2"]
         HN["health_node\nUDP Q&A client + flow check"]
         HDN["hand_detection_node\nMediaPipe Hands"]
@@ -61,6 +140,14 @@ graph TB
         WDG["qnx_wdg_server\nUDP Q&A 30ms window"]
     end
 
+    subgraph MotorDomain["Motor Domain (separate supply)"]
+        BAT["4×AA Battery Box\n(Motor Switch)"]
+        DRV["DRV8833\nDual H-Bridge"]
+        MTR["AEDIKO TT Motor\n+ Wheel"]
+    end
+
+    PS5  --> Pi5
+    PS400 --> Pi400
     HN  -->|"UDP Q&A watchdog\n192.168.50.x"| WDG
     WDG -->|"GPIO 25 e-stop\nactive-low"| AN
     HDN -->|"/hand_detections\n/hand_roi"| ODN
@@ -68,6 +155,9 @@ graph TB
     UN  -->|"/obstacles 20Hz"| DN
     DN  -->|"/system_state 50Hz"| HN
     HN  -->|"/watchdog_failure_counter"| DN
+    AN  -->|"GPIO12/16\nIN1/IN2 logic"| DRV
+    BAT -->|"VCC motor supply\n(Motor Switch)"| DRV
+    DRV -->|"OUT1/OUT2"| MTR
 ```
 
 ### State Machine
@@ -87,10 +177,10 @@ INIT → NORMAL → WARNING (obstacle <0.50m)
 
 | State | vel_scale | Green LED | Yellow LED | Red LED |
 |---|---|---|---|---|
-| INIT | 0% | ON | OFF | OFF |
+| INIT | 0% | ON (init) | OFF | OFF |
 | NORMAL | 100% | ON | OFF | OFF |
-| WARNING | 50% | ON | OFF | OFF |
-| DEGRADED | 20% | ON | ON | OFF |
+| WARNING | 50% | OFF | ON | OFF |
+| DEGRADED | 20% | OFF | ON | OFF |
 | SAFE_STATE | 0% | OFF | OFF | ON |
 
 ---
@@ -147,12 +237,14 @@ ros2 topic echo /diagnostics
 
 ## Demo Sequence
 
-1. **Launch** → system boots into SAFE_STATE (sensors not yet valid)
-2. **Reset** → INIT → NORMAL (both sensors valid, hand not detected close)
-3. **Approach hand to 50cm** → WARNING (ultrasonic)
-4. **Approach hand to ~20cm from camera** → SAFE_STATE (`camera_hand_critical`)
-5. **Remove hand, reset** → NORMAL
-6. **Stop `health_node`** → watchdog failures → SAFE_STATE via Pi400 GPIO 25 (hardware path)
+1. **Main Switch ON** → Pi400 and Pi5 boot; motor command defaults to `velocity_scale = 0.0`; red LED ON (e-stop asserted)
+2. **Startup completes** → Q&A watchdog healthy, sensors valid → NORMAL; green LED ON
+3. **Motor Switch ON** → motor rotates at `velocity_scale = 1.0` (full speed in NORMAL)
+4. **Approach obstacle to warning range** → WARNING; yellow LED ON; motor slows to `velocity_scale = 0.5`
+5. **Approach obstacle to near range (<0.15 m)** → SAFE_STATE; red LED ON; motor stops (`velocity_scale = 0.0`)
+6. **Remove obstacle, `/reset`** → back to NORMAL; green LED ON; motor resumes at 1.0
+7. **Stop `health_node`** → watchdog failures → SAFE_STATE via Pi400 GPIO 25 (hardware path); motor stops
+8. **Motor Switch OFF at any time** → motor supply removed; motor stops regardless of software state
 
 ---
 

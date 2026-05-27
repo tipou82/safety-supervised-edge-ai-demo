@@ -12,15 +12,20 @@
 | GPIO 22 | Pin 15 | Red LED — SAFE STATE indicator (wired-OR with Pi400 GPIO 22 via diode) | Output | Digital | actuator_node | No |
 | GPIO 23 | Pin 16 | Grove Ultrasonic Ranger SIG (trigger + echo, single wire) | Bidirectional | Digital pulse | ultrasonic_node | No |
 | GPIO 25 | Pin 22 | Emergency stop input (active-low, from Pi400 GPIO 25) | Input | Digital | actuator_node | **YES** |
-| GPIO 27 | Pin 13 | Yellow LED — DEGRADED state indicator | Output | Digital | health_node | No |
+| GPIO 27 | Pin 13 | Yellow LED — WARNING / DEGRADED state indicator | Output | Digital | health_node | No |
 | GPIO 18 | Pin 12 | Buzzer | Output | Digital | actuator_node | No |
-| GPIO 9  | Pin 21 | Reserved — Motor B IN3 (no hardware) | — | — | actuator_node | No |
-| GPIO 10 | Pin 19 | Reserved — Motor A IN2 (no hardware) | — | — | actuator_node | No |
-| GPIO 11 | Pin 23 | Reserved — Motor B IN4 (no hardware) | — | — | actuator_node | No |
-| GPIO 12 | Pin 32 | Reserved — Motor B PWM ENB (no hardware) | — | — | actuator_node | No |
+| GPIO 12 | Pin 32 | DRV8833 IN1 — Motor A control input 1 (direction / PWM) | Output | Digital | actuator_node | No |
+| GPIO 16 | Pin 36 | DRV8833 IN2 — Motor A control input 2 (direction / PWM) | Output | Digital | actuator_node | No |
 
 **Note**: GPIO 17 (Green LED) and GPIO 27 (Yellow LED) are permanently assigned to LEDs.
 The Q&A watchdog replaces the GPIO heartbeat — no heartbeat GPIO is used.
+
+GPIO 9, 10, 11 (previously reserved for L298N) are now **unassigned** — the L298N is replaced
+by the DRV8833 module using GPIO 12 and GPIO 16 only.
+
+> ⚠️ **GPIO conflict check**: GPIO 18 (Pin 12) is assigned to the active buzzer. GPIO 12
+> (Pin 32) is DRV8833 IN1. GPIO 16 (Pin 36) is DRV8833 IN2. No conflicts with existing
+> assignments (GPIO 2, 3, 17, 22, 23, 25, 27, 18). All assignments are consistent.
 
 ### Power and Ground Pins
 
@@ -57,10 +62,11 @@ The Q&A watchdog replaces the GPIO heartbeat — no heartbeat GPIO is used.
 - **Active State**: HIGH = LED ON
 - **Driven by**: health_node on Pi5
 
-**Yellow LED — DEGRADED State (GPIO 27)**
+**Yellow LED — WARNING / DEGRADED State (GPIO 27)**
 - **Mode**: GPIO output, initially LOW
 - **Active State**: HIGH = LED ON
 - **Driven by**: health_node on Pi5
+- **Asserted in**: WARNING state (obstacle in warning range) and DEGRADED state (sensor path invalid)
 
 **Red LED — SAFE STATE (GPIO 22, wired-OR)**
 - **Mode**: GPIO output
@@ -75,12 +81,41 @@ The Q&A watchdog replaces the GPIO heartbeat — no heartbeat GPIO is used.
 - **Voltage**: 3.3 V (sensor powered from 3.3 V pin) — no voltage divider required
 - **Range**: 2–350 cm
 
+**DRV8833 IN1 — Motor A control (GPIO 12)**
+- **Mode**: GPIO output, initially LOW
+- **Active State**: HIGH/LOW combination with IN2 controls motor direction and speed
+- **Driven by**: actuator_node on Pi5
+- **Default at boot**: LOW (motor off — zero PWM until software initialised)
+- **PWM**: Software PWM via GPIO toggling; duty cycle maps to `velocity_scale`
+- **Wiring**: GPIO 12 (Pin 32) → DRV8833 IN1
+- **Note**: IN1 drives DRV8833 logic input only — **not** connected to motor supply
+
+**DRV8833 IN2 — Motor A control (GPIO 16)**
+- **Mode**: GPIO output, initially LOW
+- **Active State**: Used in combination with IN1 for direction and braking
+- **Driven by**: actuator_node on Pi5
+- **Default at boot**: LOW (motor off — zero PWM until software initialised)
+- **Wiring**: GPIO 16 (Pin 36) → DRV8833 IN2
+- **Note**: IN2 drives DRV8833 logic input only — **not** connected to motor supply
+
+**DRV8833 Motor Control Truth Table (Motor A)**
+
+| IN1 | IN2 | Motor A behaviour |
+|-----|-----|-------------------|
+| LOW | LOW | Motor coast (free-spin) |
+| HIGH | LOW | Forward |
+| LOW | HIGH | Reverse |
+| HIGH | HIGH | Motor brake (short) |
+
+For demonstrator: IN1 = PWM duty cycle, IN2 = LOW → forward at `velocity_scale` speed.
+SAFE_STATE: both IN1 and IN2 = LOW → motor coast / command zero.
+
 ### Pinout Diagram (Pi5 GPIO Header)
 
 ```
      3.3V  (1) (2)  5V
 SDA  GPIO2  (3) (4)  5V         ← I2C SDA (Q&A watchdog master)
-SCL  GPIO3  (5) (6)  GND ───────┐ Common Ground
+SCL  GPIO3  (5) (6)  GND ───────┐ Common Ground (Pi5 ↔ Pi400)
     GPIO4  (7) (8)  GPIO14      │
       GND  (9) (10) GPIO15      │
  GRN GPIO17 (11) (12) GPIO18 ───┤ Green LED / Buzzer
@@ -93,11 +128,11 @@ SCL  GPIO3  (5) (6)  GND ───────┐ Common Ground
       GND (25) (26) GPIO7       │
     GPIO0 (27) (28) GPIO1       │
     GPIO5 (29) (30) GND         │
-    GPIO6 (31) (32) GPIO12      │
-   GPIO13 (33) (34) GND ────────┘
-   GPIO19 (35) (36) GPIO16
-   GPIO26 (37) (38) GPIO20
-      GND (39) (40) GPIO21
+    GPIO6 (31) (32) GPIO12 ─────┤ DRV8833 IN1 (Motor A ctrl)
+   GPIO13 (33) (34) GND ────────┤ Common GND → DRV8833 GND + battery (−)
+   GPIO19 (35) (36) GPIO16 ─────┤ DRV8833 IN2 (Motor A ctrl)
+   GPIO26 (37) (38) GPIO20      │
+      GND (39) (40) GPIO21      │ (also usable as additional GND reference)
 ```
 
 ---

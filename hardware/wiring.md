@@ -10,7 +10,7 @@ This document describes the physical wiring between Raspberry Pi 5 (Linux/ROS2 d
 
 ## Bill of Materials
 
-**Actual hardware as of M1.1 (2026-05-07) — pending M2 hardware changes**
+**Updated hardware concept (DRV8833 + TT motor added)**
 
 | Component | Quantity | Purpose | Notes |
 |-----------|----------|---------|-------|
@@ -22,16 +22,15 @@ This document describes the physical wiring between Raspberry Pi 5 (Linux/ROS2 d
 | Active 3.3 V buzzer | 1 | Audible alert | Sounds when GPIO driven HIGH |
 | 1N4148 diode | 2 | Red LED wired-OR isolation | Prevents back-current between Pi5 and Pi400 drivers |
 | 150 Ω resistor | 2 | Red LED current limiting (replaces 330 Ω) | One per driver leg; compensates for diode Vf drop |
+| 330 Ω resistor | 2 | Green and Yellow LED current limiting | One per LED |
 | 4.7 kΩ resistor | 2 | I2C SDA and SCL pull-ups to 3.3V | Required for I2C bus on both wires |
-| Jumper wires | 30+ | GPIO connections | Dupont female-female |
-| Breadboard | 1 | Prototyping | Sensor, LED, and I2C pull-up wiring |
+| Shared power strip with switch | 1 | **Main Switch** — powers Pi5 + Pi400 simultaneously | Both PSUs plugged into same strip |
 | Power supply (5V, 3A+) | 2 | Power each Pi | USB-C for Pi5, USB-C for Pi400 |
-
-**⚠️ Hardware changes required from M1.1 baseline — see `hardware/TODO_hardware_changes.md`**
-
-**Not present in current hardware build** (deferred to future milestone):
-- Motor driver (L298N or similar)
-- DC motors
+| DRV8833 dual H-bridge motor driver | 1 | **Visible actuator demonstrator** — drives TT motor | [Amazon DE B076KFRJWL](https://www.amazon.de/dp/B076KFRJWL) |
+| AEDIKO TT DC gear motor with wheel | 1 | Visible actuator — visualises velocity scaling | Not safety-certified; demonstrator only |
+| 4×AA battery box with switch | 1 | **Motor Switch** — dedicated motor supply | Provides ~6 V to DRV8833 VCC |
+| Jumper wires | 40+ | GPIO and motor driver connections | Dupont female-female |
+| Breadboard | 1 | Prototyping | Sensor, LED, pull-up, and motor driver wiring |
 
 ## GPIO Pin Mapping
 
@@ -163,7 +162,7 @@ Camera Module 3 → Pi5 CSI connector (ribbon cable)
 
 ```
 Pi5 GPIO 17 (Pin 11) → Green LED  anode → [ 330 Ω ] → GND  (NORMAL indicator)
-Pi5 GPIO 27 (Pin 13) → Yellow LED anode → [ 330 Ω ] → GND  (DEGRADED indicator)
+Pi5 GPIO 27 (Pin 13) → Yellow LED anode → [ 330 Ω ] → GND  (WARNING / DEGRADED indicator)
 
 Red LED (wired-OR — see diode circuit above):
 Pi5   GPIO 22 (Pin 15) → [ 150 Ω ] → [ D1: 1N4148 ] → Red LED anode → GND
@@ -183,19 +182,125 @@ Active 3.3 V buzzer — sounds when GPIO driven HIGH.
 
 ## Power Distribution
 
-### Isolated Power Supplies
+### Main Switch (Shared Power Strip)
+
+Both the Raspberry Pi 5 and Raspberry Pi 400 are powered through the **same power strip**,
+controlled by one physical switch — the **Main Switch**.
+
+```
+[Mains] ──── [Power Strip / Main Switch]
+                  ├── USB-C PSU (5V 3A+) ──── Raspberry Pi 5
+                  └── USB-C PSU (5V 3A+) ──── Raspberry Pi 400
+```
+
+- **Main Switch ON**: both Pi5 and Pi400 power up simultaneously.
+- **Main Switch OFF**: both Pi5 and Pi400 power off simultaneously.
+- This is a physical hardware switch only — not software-controlled.
 
 **Pi5 Power**: 5V, 3A minimum — USB-C. Powers Pi5, Camera, Grove sensor, LEDs, buzzer.
 
 **Pi400 Power**: 5V, 3A minimum — USB-C. Powers Pi400 only.
 
+### Motor Switch (4×AA Battery Box)
+
+The DRV8833 motor driver is powered **independently** from a 4×AA battery box (~6 V nominal).
+The battery box has its own switch — the **Motor Switch**.
+
+```
+[4×AA Battery Box]
+    (+) ──── [Motor Switch] ──── DRV8833 VCC
+    (−) ────────────────────── DRV8833 GND ─────── Pi5 GND (common reference)
+```
+
+- **Motor Switch ON**: motor supply available to DRV8833; motor may rotate if software allows.
+- **Motor Switch OFF**: motor supply removed; motor cannot rotate regardless of software state.
+- The Motor Switch is independent of the Main Switch.
+
 ### Ground Reference
 
 ```
-Pi5 GND (Pin 6) ──── Pi400 GND (Pin 6)   (common ground for I2C and e-stop GPIO)
+Pi5 GND (Pin 34 or 39) ──── DRV8833 GND ──── 4×AA battery (−)
+Pi5 GND (Pin 6)         ──── Pi400 GND (Pin 6)   (common ground for watchdog and e-stop GPIO)
 ```
 
-A common ground is mandatory for correct I2C operation and GPIO signal reference.
+> ⚠️ **Common ground is mandatory.** The Pi5, DRV8833, and 4×AA battery negative must all share
+> a common GND reference for correct GPIO logic levels on DRV8833 IN1/IN2. Failure to connect
+> common ground may cause undefined DRV8833 behaviour or GPIO damage.
+
+> ⚠️ **Never connect 4×AA battery positive to any Raspberry Pi GPIO pin.** GPIO pins are
+> 3.3 V logic only. Motor supply voltage will damage the GPIO and may damage the processor.
+
+---
+
+## Motor Actuator Wiring (DRV8833 + 4×AA Battery + AEDIKO TT Motor)
+
+> **Demonstrator note**: The DRV8833 and TT motor are used as a **visible actuator**
+> to demonstrate `velocity_scale` and safe-state stop behaviour. They are not safety-certified
+> actuators. Motor supply is independent of Pi5/Pi400 power.
+
+### DRV8833 Module Pin Mapping
+
+([Amazon DE B076KFRJWL](https://www.amazon.de/dp/B076KFRJWL))
+
+| DRV8833 Pin | Connected to | Description |
+|-------------|--------------|-------------|
+| VCC | 4×AA battery (+) via Motor Switch | Motor supply voltage (~6 V) |
+| GND | 4×AA battery (−) **and** Pi5 GND | Common ground reference |
+| IN1 | Pi5 GPIO 12 (Physical Pin 32) | Motor A control input 1 (direction / PWM) |
+| IN2 | Pi5 GPIO 16 (Physical Pin 36) | Motor A control input 2 (direction / PWM) |
+| OUT1 | AEDIKO TT motor terminal A | Motor A output 1 |
+| OUT2 | AEDIKO TT motor terminal B | Motor A output 2 |
+| EEP | Leave open (or pull HIGH if module requires enable) | Sleep/enable pin — check module behaviour; open = enabled on most variants |
+| ULT | Not connected (MVP) | Fault/protection output — optional, not used in demonstrator |
+
+> **EEP note**: On the linked DRV8833 module, EEP is the nSLEEP/enable pin. Leave open for
+> normal operation. If the motor does not respond, pull EEP to 3.3 V via a 10 kΩ resistor
+> to confirm the module is not in sleep mode.
+
+### Wiring Connections
+
+```
+Pi5 GPIO 12 (Pin 32) ──────────────── DRV8833 IN1
+Pi5 GPIO 16 (Pin 36) ──────────────── DRV8833 IN2
+Pi5 GND     (Pin 34) ──────────────── DRV8833 GND ────── 4×AA battery (−)
+
+4×AA battery (+) ──── [Motor Switch] ──── DRV8833 VCC
+
+DRV8833 OUT1 ──── AEDIKO TT motor terminal A
+DRV8833 OUT2 ──── AEDIKO TT motor terminal B
+```
+
+### Wiring Diagram (ASCII)
+
+```
+┌─────────────────────────────────────────────┐       ┌──────────────────────────┐
+│   Raspberry Pi 5 (Linux/ROS2)               │       │   4×AA Battery Box       │
+│                                             │       │   (+) ─[Motor Switch]─┐  │
+│  GPIO 12 (Pin 32) ─────────────────────┐   │       │   (−) ────────────┐   │  │
+│  GPIO 16 (Pin 36) ──────────────────┐  │   │       └───────────────────┼───┼──┘
+│  GND     (Pin 34) ──────────────┐   │  │   │                           │   │
+└──────────────────────────────────┼───┼──┼───┘       ┌───────────────────┼───┼──┐
+                                   │   │  │            │   DRV8833 Module  │   │  │
+                                   └───┼──┼────────────┤ GND          VCC─┘   │  │
+                                       └──┼────────────┤ IN2               ←──┘  │
+                                          └────────────┤ IN1                      │
+                                                       │ OUT1 ──┐                 │
+                                                       │ OUT2 ──┤                 │
+                                                       └────────┼─────────────────┘
+                                              ┌─────────────────┘
+                                              │  AEDIKO TT DC Gear Motor
+                                              └── OUT1/OUT2 → motor terminals
+```
+
+### Voltage and Current Notes
+
+| Parameter | Value |
+|---|---|
+| Motor supply (VCC) | ~4.8–6 V from 4×AA (4 × 1.2–1.5 V) |
+| GPIO logic level (IN1/IN2) | 3.3 V (Pi5 standard) |
+| DRV8833 logic input range | 1.8–5.5 V (3.3 V compatible) |
+| Max motor current per channel | 1.5 A (2 A peak — DRV8833 rated) |
+| TT motor stall current | ~0.5 A typical |
 
 ---
 
@@ -231,22 +336,39 @@ D1, D2 = 1N4148 (cathode toward LED anode)
 
 ## Wiring Checklist
 
-Before powering on, verify (M2 target state):
+Before powering on, verify:
 
+**Inter-processor and supervisor:**
 - [ ] Common ground established between Pi5 and Pi400 (Pin 6 ↔ Pin 6)
 - [ ] I2C SDA: Pi5 GPIO 2 (Pin 3) ↔ Pi400 GPIO 2 (Pin 3)
 - [ ] I2C SCL: Pi5 GPIO 3 (Pin 5) ↔ Pi400 GPIO 3 (Pin 5)
 - [ ] 4.7 kΩ pull-up resistors: SDA to 3.3V and SCL to 3.3V
 - [ ] E-stop: Pi400 GPIO 25 (Pin 22) → Pi5 GPIO 25 (Pin 22)
+
+**LEDs and indicators:**
 - [ ] Red LED: diode-OR circuit with D1, D2 (1N4148) and 150 Ω resistors in place
 - [ ] Green LED: Pi5 GPIO 17 (Pin 11) → 330 Ω → GND
 - [ ] Yellow LED: Pi5 GPIO 27 (Pin 13) → 330 Ω → GND
 - [ ] Buzzer: Pi5 GPIO 18 (Pin 12) → Buzzer (+), GND → (−)
+
+**Sensors:**
 - [ ] Camera Module 3 CSI ribbon cable fully seated, correct orientation
 - [ ] Grove Ultrasonic Ranger: SIG → GPIO 23 (Pin 16), VCC → 3.3V, GND connected
-- [ ] No loose wires or shorts visible
 
-**Hardware changes from M1.1 baseline still pending** — see `hardware/TODO_hardware_changes.md`.
+**Motor actuator (DRV8833 + 4×AA battery):**
+- [ ] DRV8833 GND connected to 4×AA battery negative **and** Pi5 GND (Pin 34 or 39) — common ground
+- [ ] Pi5 GPIO 12 (Pin 32) connected to DRV8833 IN1
+- [ ] Pi5 GPIO 16 (Pin 36) connected to DRV8833 IN2
+- [ ] 4×AA battery (+) connected to DRV8833 VCC **via Motor Switch only** (not directly to any Pi GPIO)
+- [ ] DRV8833 OUT1 and OUT2 connected to AEDIKO TT motor terminals
+- [ ] EEP pin: leave open (or pull to 3.3 V if motor does not respond)
+- [ ] ULT pin: not connected (MVP)
+- [ ] Motor Switch OFF during initial power-on; enable only after system is in NORMAL state
+
+**Power:**
+- [ ] Pi5 USB-C PSU and Pi400 USB-C PSU both plugged into shared power strip (Main Switch)
+- [ ] Main Switch OFF before first inspection; ON only after all wiring verified
+- [ ] No loose wires or shorts visible
 
 ---
 

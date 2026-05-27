@@ -6,6 +6,32 @@
 
 This demonstrator implements a dual-processor architecture with FFI-inspired separation between the AI perception domain (Linux/ROS2) and the safety monitoring domain (QNX-inspired supervisor).
 
+### System Power and Startup Concept
+
+**Main Switch (shared power strip):**
+Both Raspberry Pi boards are powered through the same power strip, controlled by the **Main Switch**.
+When the Main Switch is ON, both Pi5 and Pi400 boot simultaneously. When OFF, both power down.
+
+**Motor Switch (4×AA battery box):**
+The DRV8833 motor driver is powered **separately** from a 4×AA battery box with its own
+**Motor Switch**. The motor can only rotate if the Motor Switch is ON AND the software state
+allows it. The Raspberry Pi supplies only 3.3 V logic signals to DRV8833 IN1/IN2 — never motor
+supply voltage.
+
+**Startup release criterion:**
+The system enters NORMAL only after all of the following are satisfied:
+1. Pi400 Q&A watchdog communication is healthy (failure_counter < 3).
+2. All required ROS2 application nodes on Pi5 are alive.
+3. Sensor validity checks pass (ultrasonic valid, camera optional/supplementary).
+
+If startup criteria are not met, the system remains in SAFE_STATE. Manual `/reset` is required.
+
+**Pi400 watchdog role:**
+The Pi400 supervisor is external to the Pi5 application stack. It operates independently,
+using only rule-based deterministic logic. AI perception outputs never reach the Pi400 supervisor.
+On watchdog fault or startup failure, the Pi400 asserts GPIO 25 LOW (e-stop, active-low) and
+illuminates the red LED via GPIO 22 — independently of Pi5 software.
+
 ## High-Level Architecture
 
 ```mermaid
@@ -23,30 +49,46 @@ graph TB
         SafeCtrl[Safe State Controller<br/>Emergency Brake]
     end
 
-    subgraph External
-        Env[Environment]
-        Motors[Motors/Actuators]
+    subgraph MainSwitch["Main Switch (shared power strip)"]
+        PSU5["Pi5 USB-C PSU"]
+        PSU400["Pi400 USB-C PSU"]
     end
 
+    subgraph MotorDomain["Motor Domain (separate 4xAA supply)"]
+        MotorSwitch["Motor Switch\n4xAA battery box"]
+        DRV["DRV8833\nDual H-Bridge"]
+        TT["AEDIKO TT Motor\n+ Wheel"]
+    end
+
+    subgraph External
+        Env[Environment]
+    end
+
+    PSU5 --> Pi5
+    PSU400 --> Pi400
     Env -->|Image| Camera
     Env -->|Distance| Ultra
     Camera -->|DetectionArray| Decision
     Ultra -->|ObstacleMsg| Decision
-    Decision -->|CmdVel| Actuator
-    Actuator -->|PWM| Motors
+    Decision -->|velocity_scale / CmdVel| Actuator
+    Actuator -->|GPIO12 IN1\nGPIO16 IN2\n3.3V logic only| DRV
+    MotorSwitch -->|VCC motor supply| DRV
+    DRV -->|OUT1/OUT2| TT
 
-    Health -->|I2C Q&A Watchdog seed/response| WDG
+    Health -->|UDP Q&A Watchdog seed/response\n192.168.50.x| WDG
     Decision -->|State Info| WDG
     WDG -->|Monitor Status| SafeCtrl
-    SafeCtrl -->|Emergency Stop GPIO 25| Actuator
+    SafeCtrl -->|Emergency Stop GPIO 25\nactive-low| Actuator
     SafeCtrl -->|Red LED GPIO 22| RedLED[Red LED SAFE STATE]
     Health -->|Green LED GPIO 17| GreenLED[Green LED NORMAL]
-    Decision -->|Yellow LED GPIO 27| YellowLED[Yellow LED DEGRADED]
+    Decision -->|Yellow LED GPIO 27| YellowLED[Yellow LED WARNING/DEGRADED]
 
     style Pi5 fill:#e1f5e1
     style Pi400 fill:#ffe1e1
     style WDG fill:#ffcccc
     style SafeCtrl fill:#ffcccc
+    style MotorDomain fill:#fff8e1
+    style MainSwitch fill:#f3f3f3
 ```
 
 ## Component Descriptions
@@ -69,9 +111,11 @@ graph TB
 - Publishes on `/cmd_vel` topic
 
 **Actuator Node**
-- Receives velocity commands from Decision Node
-- Controls motor PWM signals
-- **Critical**: Accepts emergency stop from QNX supervisor
+- Receives velocity commands (`velocity_scale`) from Decision Node
+- Controls DRV8833 IN1/IN2 via GPIO 12 and GPIO 16 (3.3 V logic signals only — no motor supply on Pi GPIO)
+- Enforces `velocity_scale = 0.0` (motor stop) in SAFE_STATE, INIT, and any unhandled state
+- **Critical**: Accepts emergency stop from QNX supervisor (GPIO 25 active-low, polled at 100 Hz)
+- Motor rotates only if: (a) system state is NORMAL or allowed WARNING/DEGRADED, AND (b) Motor Switch is ON
 
 **Health Monitor**
 - Manages I2C Q&A watchdog as I2C master (GPIO 2/3)

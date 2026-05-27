@@ -34,10 +34,32 @@ This document defines the system-level requirements for the Safety-Supervised Ed
 - **Priority**: Medium
 
 **SYS-FUNC-005**: Actuator Control
-- The system shall convert velocity commands to motor PWM signals
-- The system shall provide emergency stop capability via GPIO override
+- The system shall convert velocity commands to motor PWM signals via `velocity_scale` (0.0–1.0)
+- The system shall provide emergency stop capability via GPIO override (GPIO 25, active-low)
+- The actuator node shall drive DRV8833 IN1 (GPIO 12) and IN2 (GPIO 16) with 3.3 V logic signals only
+- The motor supply (DRV8833 VCC) shall be provided by the 4×AA battery box via Motor Switch — never from Raspberry Pi GPIO
 - **Priority**: High (safety-relevant interface)
-- **Hardware note**: Motor driver and DC motors not present in current hardware build. GPIO pins reserved. Deferred to future milestone.
+
+**SYS-FUNC-009**: Main Switch — Shared Power-Up Concept
+- Both Raspberry Pi 5 and Raspberry Pi 400 shall be powered through the same shared power strip
+- The power strip shall have one Main Switch that powers both boards simultaneously
+- When the Main Switch is ON, both Pi5 and Pi400 shall boot without software intervention
+- When the Main Switch is OFF, both boards shall power down simultaneously
+- **Priority**: High (operational concept)
+
+**SYS-FUNC-010**: Motor Switch — Separate Motor Supply
+- The DRV8833 motor driver shall be powered by a separate 4×AA battery box
+- The battery box shall have its own Motor Switch (independent of the Main Switch)
+- Motor Switch ON: motor supply available to DRV8833; motor may rotate if software state allows
+- Motor Switch OFF: motor supply removed; motor shall not rotate regardless of software state
+- Pi5 GND, DRV8833 GND, and 4×AA battery negative shall share a common ground reference
+- **Priority**: High (hardware safety measure)
+
+**SYS-FUNC-011**: Boot Default — Motor Off
+- The default `velocity_scale` at system boot shall be 0.0 (motor stopped)
+- The motor command shall remain zero until the system successfully releases to NORMAL state
+- No motor motion shall occur during BOOTING / INIT state, regardless of Motor Switch position
+- **Priority**: Critical (prevents unintended motion during startup)
 
 ### Safety Supervision
 
@@ -118,11 +140,27 @@ This document defines the system-level requirements for the Safety-Supervised Ed
 - **ASIL**: B-inspired
 
 **SYS-SAFE-009**: State LED Indicators
-- Green LED (Pi5 GPIO 17): shall be illuminated in NORMAL state
-- Yellow LED (Pi5 GPIO 27): shall be illuminated in DEGRADED state (one of two sensor paths unreliable)
+- Green LED (Pi5 GPIO 17): shall be illuminated in NORMAL state; ON during INIT as initialization indicator
+- Yellow LED (Pi5 GPIO 27): shall be illuminated in WARNING and DEGRADED states
 - Red LED (wired-OR: Pi5 GPIO 22 / Pi400 GPIO 22): shall be illuminated in SAFE_STATE
 - Pi400 shall be able to assert the red LED independently of Pi5
 - **Priority**: High
+
+**SYS-SAFE-013**: Startup Release Criterion
+- The system shall not release to NORMAL state unless all of the following are satisfied simultaneously:
+  (a) Pi400 Q&A watchdog failure_counter < 3 (watchdog communication healthy),
+  (b) All required ROS2 application nodes on Pi5 are alive (health_node flow check passes),
+  (c) Ultrasonic sensor validity check passes (data received within validity timeout)
+- If startup criteria are not met, the system shall enter SAFE_STATE directly
+- **Priority**: Critical (prevents unintended motion on incomplete startup)
+- **ASIL**: B-inspired
+
+**SYS-SAFE-014**: Safe State Motor Override
+- In SAFE_STATE, the actuator node shall force `velocity_scale = 0.0` regardless of any incoming velocity command
+- In SAFE_STATE, the actuator node shall de-assert PWM on DRV8833 IN1 and IN2 (both LOW)
+- Safe State has priority over any `velocity_scale` command from the decision node
+- **Priority**: Critical
+- **ASIL**: B-inspired
 
 **SYS-SAFE-012**: Camera-Based Hand Distance — Supplementary SAFE_STATE Trigger
 - When `camera_valid=true` AND camera-estimated hand distance < 0.20m, the system shall enter SAFE_STATE
@@ -205,10 +243,12 @@ This document defines the system-level requirements for the Safety-Supervised Ed
 ## Operational Requirements
 
 **SYS-OPS-001**: Startup Sequence
-- QNX supervisor shall boot first and assert emergency stop
-- Linux domain shall complete ROS2 node bringup
-- Health monitor shall start heartbeat after all nodes ready
-- Supervisor shall release emergency stop after 10 consecutive valid heartbeats
+- Main Switch ON: Pi400 supervisor boots and immediately asserts e-stop GPIO 25 LOW (fail-safe); red LED ON
+- Main Switch ON: Pi5 boots, ROS2 nodes start; `velocity_scale` defaults to 0.0; motor off
+- health_node begins UDP Q&A watchdog exchange with Pi400 supervisor
+- Pi400 releases e-stop (GPIO 25 HIGH) only after startup release criterion (SYS-SAFE-013) is met
+- System transitions from INIT → NORMAL; green LED ON
+- Motor Switch may be activated at any time; motor rotates only after NORMAL is reached
 
 **SYS-OPS-002**: Shutdown Sequence
 - Graceful shutdown: Health monitor stops heartbeat

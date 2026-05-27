@@ -48,6 +48,35 @@ topics:
     description: Velocity commands for motion control
     safety_relevant: false
 
+  /velocity_scale:
+    type: std_msgs/Float32
+    qos:
+      reliability: RELIABLE
+      history: KEEP_LAST
+      depth: 1
+    publisher: decision_node
+    subscribers:
+      - actuator_node
+    rate: 50 Hz
+    description: >
+      Normalised velocity scale factor (0.0 = stop, 1.0 = full speed).
+      Maps to DRV8833 PWM duty cycle on GPIO 12 (IN1).
+      actuator_node overrides to 0.0 in SAFE_STATE regardless of published value.
+    value_range:
+      min: 0.0
+      max: 1.0
+    state_mapping:
+      INIT: 0.0
+      NORMAL: 1.0
+      WARNING: 0.5
+      DEGRADED: 0.2
+      SAFE_STATE: 0.0  # forced override — decision_node value ignored
+    safety_relevant: true
+    notes: >
+      SAFE_STATE override is enforced by actuator_node, not by decision_node.
+      The hardware e-stop (GPIO 25) provides a second independent motor-stop path.
+      Motor can rotate only if Motor Switch (4xAA battery box) is also ON.
+
   /system_health:
     type: diagnostic_msgs/DiagnosticArray
     qos:
@@ -165,6 +194,47 @@ gpio:
     trigger_pulse: 10 µs HIGH
     range_cm: 2–350
     safety_critical: false
+
+  drv8833_in1:
+    description: DRV8833 Motor A control input 1 — direction and PWM
+    linux_gpio: 12
+    physical_pin: 32
+    direction: Output (Pi5 → DRV8833 IN1)
+    voltage: 3.3V logic (DRV8833 logic input range 1.8–5.5V — compatible)
+    default_state: LOW (motor off at boot and in SAFE_STATE)
+    driven_by: actuator_node
+    safety_critical: false
+    notes: >
+      IN1 drives DRV8833 logic input only. Motor supply (VCC) is provided by 4xAA
+      battery box via Motor Switch. GPIO 12 must never be connected to motor supply.
+
+  drv8833_in2:
+    description: DRV8833 Motor A control input 2 — direction and braking
+    linux_gpio: 16
+    physical_pin: 36
+    direction: Output (Pi5 → DRV8833 IN2)
+    voltage: 3.3V logic
+    default_state: LOW (motor off at boot and in SAFE_STATE)
+    driven_by: actuator_node
+    safety_critical: false
+    notes: >
+      IN2 used with IN1 for forward/reverse/brake control. For demonstrator MVP:
+      IN1 = PWM (velocity_scale duty cycle), IN2 = LOW → forward rotation.
+      Both LOW = motor coast / command zero in SAFE_STATE.
+
+  motor_driver_power:
+    description: DRV8833 motor supply — separate from Raspberry Pi power
+    supply: 4xAA battery box (~6V nominal)
+    control: Motor Switch (physical switch on battery box)
+    drv8833_pin: VCC
+    common_ground: >
+      Pi5 GND (Pin 34 or 39), DRV8833 GND, and 4xAA battery negative must all share
+      a common ground reference.
+    safety_critical: false
+    notes: >
+      Motor supply is completely independent of Pi5/Pi400 power (Main Switch).
+      Motor Switch OFF = motor cannot rotate regardless of software state.
+      Pi GPIO pins must never be connected to motor supply voltage.
 
 ---
 # Ethernet Interface (Inter-Processor Supervisor Link)

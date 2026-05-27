@@ -160,18 +160,113 @@ This demonstrator implements ASIL-B-inspired safety requirements as an education
 
 **Known SPOFs**:
 - GPIO wiring between boards (no redundancy) - **Accepted** for demo
-- Common power supply (no dual PSU) - **Accepted** for demo
+- Common power supply — shared power strip for Pi5 and Pi400 (Main Switch cuts both) - **Accepted** for demo
 - Pi400 supervisor processor (no redundant supervisor) - **Accepted** for demo
+- Motor Switch — a single hardware switch controls motor supply; no software override of Motor Switch - **Accepted** for demo
 
 **Mitigation**:
 - Fail-safe defaults minimize hazard on SPOF failure
 - Demonstration environment allows operator intervention
+- Motor supply is physically isolated from Raspberry Pi power (separate 4×AA battery box)
 
 **Rationale**: Complete fault tolerance not required for demonstrator. SPOFs documented for honesty.
 
 **ASIL**: N/A (informational)
 
 **Verification**: Design review, FMEA (simplified)
+
+---
+
+### FSR-009: Boot Default — Motor Off
+
+**Requirement**: The motor actuator shall be in a stopped state (velocity_scale = 0.0) by default at system boot and during BOOTING/INIT state, before the startup release criterion is satisfied.
+
+**Details**:
+- Default GPIO state for DRV8833 IN1 (GPIO 12) and IN2 (GPIO 16): LOW at boot
+- `velocity_scale = 0.0` until system transitions to NORMAL
+- No PWM output to DRV8833 during INIT state
+- Motor may only rotate after successful startup release (SYS-SAFE-013)
+
+**Rationale**: Prevents unintended motion during system startup, when sensor validity and watchdog health have not yet been confirmed.
+
+**ASIL**: B-inspired
+
+**Verification**: Power-on test — verify motor does not rotate during boot with Motor Switch ON; verify only after NORMAL is reached
+
+---
+
+### FSR-010: Safe State Motor Off — velocity_scale Override
+
+**Requirement**: In SAFE_STATE, the actuator node shall override any incoming velocity command and force velocity_scale = 0.0. DRV8833 IN1 and IN2 shall both be driven LOW.
+
+**Details**:
+- Safe State has priority over all velocity commands from decision_node
+- `velocity_scale = 0.0` shall be enforced in SAFE_STATE regardless of Motor Switch position
+- Red LED (GPIO 22) shall be ON in SAFE_STATE (wired-OR: Pi5 and Pi400 can both assert)
+- Pi400 also independently asserts e-stop (GPIO 25 LOW) to enforce safe state via hardware path
+
+**Rationale**: Ensures motor stop even in case of software fault in decision_node. Two independent mechanisms: GPIO 25 hardware path (Pi400) and software velocity override (Pi5 actuator_node).
+
+**ASIL**: B-inspired
+
+**Verification**: Fault injection — trigger SAFE_STATE, verify motor stops; inject velocity command in SAFE_STATE, verify it is overridden
+
+---
+
+### FSR-011: Near-Range Detection → Safe State
+
+**Requirement**: When the ultrasonic sensor detects an obstacle at distance below SAFE_DISTANCE (0.15 m), the system shall enter SAFE_STATE within 100 ms of the triggering measurement.
+
+**Details**:
+- Trigger: ultrasonic_node measurement < SAFE_DISTANCE (0.15 m)
+- Response: StateEvaluator transitions to SAFE_STATE; actuator_node forces velocity_scale = 0.0
+- Red LED ON; motor stops
+- Latency budget: ultrasonic at 20 Hz (50 ms) + decision at 50 Hz (20 ms) + overhead (10 ms) = 80 ms < 100 ms
+- AI perception outputs do NOT enter this safety path; trigger is ultrasonic only
+
+**Rationale**: Deterministic ultrasonic path provides bounded safe-state latency. Motor stops before further approach can cause harm.
+
+**ASIL**: B-inspired (maps to SYS-SAFE-011)
+
+**Verification**: Place obstacle at <0.15 m; verify motor stops and red LED asserts within 100 ms; timing measurement
+
+---
+
+### FSR-012: Warning-Range Detection → Velocity Reduction
+
+**Requirement**: When the ultrasonic sensor detects an obstacle in the warning range, the system shall enter WARNING state and reduce velocity_scale to 0.5 (or lower configured value).
+
+**Details**:
+- Warning range threshold: configurable (default 0.50 m)
+- WARNING state: velocity_scale = 0.5 (50% nominal speed)
+- Yellow LED ON in WARNING state
+- Auto-recovery to NORMAL when obstacle is removed (warning condition cleared)
+- AI perception outputs do NOT directly trigger WARNING; ultrasonic is the primary input
+
+**Rationale**: Provides graduated response — slower speed when approaching an obstacle, improving reaction time before safe-state is required.
+
+**ASIL**: QM (not in safety path; supplementary degradation behaviour)
+
+**Verification**: Place obstacle in warning range; verify yellow LED ON and motor speed reduced; remove obstacle, verify return to NORMAL and green LED ON
+
+---
+
+### FSR-013: Watchdog Fault → Safe State (Motor Stop)
+
+**Requirement**: When the Pi400 supervisor detects a Q&A watchdog fault (failure_counter ≥ 3), it shall assert GPIO 25 LOW (e-stop) and the actuator_node shall force velocity_scale = 0.0 within 150 ms.
+
+**Details**:
+- Pi400 independently asserts GPIO 25 LOW (e-stop, active-low) — does not require Pi5 cooperation
+- Pi400 independently drives GPIO 22 HIGH (red LED, wired-OR)
+- Actuator_node detects GPIO 25 LOW at 100 Hz poll rate → motor stop ≤ 30 ms from assertion
+- Total worst-case latency: 3 × 30 ms (window) + 20 ms (GPIO) + 10 ms (poll) + 30 ms (motor) = 150 ms
+- This maps to SYS-SAFE-006 (Safe State Latency requirement)
+
+**Rationale**: Hardware GPIO path ensures motor stop even if Pi5 software is partially non-functional (which may be the cause of the watchdog fault).
+
+**ASIL**: B-inspired
+
+**Verification**: Stop health_node on Pi5; verify failure_counter increments; verify SAFE_STATE asserted via GPIO 25; verify motor stops; measure end-to-end latency < 150 ms
 
 ## Safety Mechanisms
 

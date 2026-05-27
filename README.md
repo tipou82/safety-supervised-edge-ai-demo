@@ -109,7 +109,7 @@ AEDIKO TT DC gear motor with wheel. This is used solely as a **visible actuator*
 |---|---|---|
 | BOOTING / INIT | 0.0 | Motor off — default at boot |
 | NORMAL | 1.0 | Motor rotates at full speed |
-| WARNING (obstacle in warning range) | 0.5 | Motor rotates at reduced speed |
+| WARNING (obstacle in warning range) | 0.2 | Motor rotates at reduced speed |
 | SAFE_STATE (near range / watchdog fault / init fail) | 0.0 | Motor stopped |
 
 Safe State has priority over any velocity command. If SAFE_STATE is requested due to near-range
@@ -194,15 +194,14 @@ INIT → NORMAL → WARNING (obstacle <0.50m)
 source ~/ros2_humble/install/setup.bash
 
 # Python dependencies
-sudo apt install python3-picamera2 python3-smbus2
+sudo apt install python3-picamera2 python3-lgpio
 pip3 install mediapipe ultralytics opencv-python-headless simplejpeg
 ```
 
-### Build
+### Build (Pi5)
 
 ```bash
-cd ~/safety-supervised-edge-ai-demo
-git pull
+cd ~/safety-supervised-edge-ai-demo && git pull
 
 cd pi5_linux/ros2_ws
 source ~/ros2_humble/install/setup.bash
@@ -212,26 +211,120 @@ source install/setup.bash
 
 ### Run
 
-**Terminal 1 — Pi400 supervisor:**
+**Step 1 — Pi400: start supervisor** (SSH into Pi400)
 ```bash
 python3 ~/safety-supervised-edge-ai-demo/pi400_supervisor/scripts/qnx_wdg_server.py
 ```
 
-**Terminal 2 — Pi5 system:**
+**Step 2 — Pi5: launch ROS2 stack** (SSH into Pi5)
 ```bash
 source ~/ros2_humble/install/setup.bash
 source ~/safety-supervised-edge-ai-demo/pi5_linux/ros2_ws/install/setup.bash
 ros2 launch safety_demo demo.launch.py
 ```
 
-**Terminal 3 — Reset and monitor:**
+**Step 3 — Pi5: release to NORMAL**
 ```bash
 ros2 topic pub --once /reset std_msgs/msg/Bool "data: true"
-ros2 topic echo /system_state
-ros2 topic echo /diagnostics
 ```
 
+**Step 4 — Motor Switch ON** → motor rotates at velocity_scale = 1.0
+
 **MJPEG live view** (annotated camera feed): `http://<pi5-ip>:8080`
+
+---
+
+## Useful Commands
+
+### System state monitoring
+
+```bash
+# Current system state (INIT / NORMAL / WARNING / DEGRADED / SAFE_STATE)
+ros2 topic echo /system_state
+
+# Motor speed scale (0.0–1.0)
+ros2 topic echo /velocity_scale
+
+# Full diagnostics (state, trigger reason, sensor validity, watchdog counter)
+ros2 topic echo /diagnostics
+
+# Watchdog failure counter from Pi400
+ros2 topic echo /watchdog_failure_counter
+
+# Ultrasonic distance (m)
+ros2 topic echo /obstacles
+
+# All active topics
+ros2 topic list
+
+# All running nodes
+ros2 node list
+```
+
+### System control
+
+```bash
+# Release to NORMAL (after all conditions are clear)
+ros2 topic pub --once /reset std_msgs/msg/Bool "data: true"
+
+# Force SAFE_STATE manually (for testing)
+ros2 topic pub --once /reset std_msgs/msg/Bool "data: false"
+```
+
+### GPIO state (on Pi5)
+
+```bash
+# E-stop pin — HIGH = released, LOW = e-stop active
+raspi-gpio get 25
+
+# Motor control pins — should be PWM in NORMAL, LOW in SAFE_STATE
+raspi-gpio get 12   # DRV8833 IN1
+raspi-gpio get 16   # DRV8833 IN2
+```
+
+### Hardware tests (no ROS2 required)
+
+```bash
+# DRV8833 motor direct test — verifies hardware independent of ROS2
+python3 tests/manual/test_motor_direct.py
+
+# LED test
+python3 pi5_linux/scripts/led_test.py
+
+# Ultrasonic sensor test
+python3 pi5_linux/scripts/ultrasonic_test.py
+
+# E-stop input test
+python3 pi5_linux/scripts/estop_input_test.py
+```
+
+### Build and update
+
+```bash
+# Pull latest and rebuild (run on Pi5 after git pull)
+cd ~/safety-supervised-edge-ai-demo && git pull
+cd pi5_linux/ros2_ws
+colcon build --merge-install
+source install/setup.bash
+
+# Quick rebuild of one package only
+colcon build --merge-install --packages-select actuator_node
+colcon build --merge-install --packages-select decision_node
+```
+
+### Fault injection (manual tests)
+
+```bash
+# Simulate watchdog fault — kill health_node, watch failure counter rise
+ros2 node kill /health_node
+
+# Simulate sensor loss — kill ultrasonic_node → DEGRADED
+ros2 node kill /ultrasonic_node
+
+# Check fault injection test scripts
+ls tests/fault_injection/
+python3 tests/fault_injection/fi_05_watchdog_failure.py
+```
 
 ---
 
@@ -240,7 +333,7 @@ ros2 topic echo /diagnostics
 1. **Main Switch ON** → Pi400 and Pi5 boot; motor command defaults to `velocity_scale = 0.0`; red LED ON (e-stop asserted)
 2. **Startup completes** → Q&A watchdog healthy, sensors valid → NORMAL; green LED ON
 3. **Motor Switch ON** → motor rotates at `velocity_scale = 1.0` (full speed in NORMAL)
-4. **Approach obstacle to warning range** → WARNING; yellow LED ON; motor slows to `velocity_scale = 0.5`
+4. **Approach obstacle to warning range** → WARNING; yellow LED ON; motor slows to `velocity_scale = 0.2`
 5. **Approach obstacle to near range (<0.15 m)** → SAFE_STATE; red LED ON; motor stops (`velocity_scale = 0.0`)
 6. **Remove obstacle, `/reset`** → back to NORMAL; green LED ON; motor resumes at 1.0
 7. **Stop `health_node`** → watchdog failures → SAFE_STATE via Pi400 GPIO 25 (hardware path); motor stops

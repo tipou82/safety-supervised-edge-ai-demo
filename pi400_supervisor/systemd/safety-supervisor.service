@@ -1,0 +1,19 @@
+[Unit]
+Description=Safety-Supervised Edge AI — Pi400 Watchdog Supervisor
+Documentation=https://github.com/tipou82/safety-supervised-edge-ai-demo
+# Start after network is up (UDP watchdog needs Ethernet 192.168.50.x)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=yunpeng
+WorkingDirectory=/home/yunpeng/safety-supervised-edge-ai-demo
+ExecStart=/usr/bin/python3 /home/yunpeng/safety-supervised-edge-ai-demo/pi400_supervisor/scripts/qnx_wdg_server.py
+Restart=on-failure
+RestartSec=3s
+# GPIO: Pi400 asserts e-stop LOW at process start (fail-safe default in code)
+# No additional pre-start needed — qnx_wdg_server.py handles GPIO init
+
+[Install]
+WantedBy=multi-user.target

@@ -54,7 +54,7 @@ double StateEvaluator::velocity_scale(SystemState state) noexcept
 {
     switch (state) {
         case SystemState::NORMAL:     return 1.0;
-        case SystemState::WARNING:    return 0.1;
+        case SystemState::WARNING:    return 0.2;
         case SystemState::DEGRADED:   return 0.2;
         case SystemState::INIT:       [[fallthrough]];
         case SystemState::SAFE_STATE: [[fallthrough]];

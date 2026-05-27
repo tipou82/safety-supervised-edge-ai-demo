@@ -94,9 +94,10 @@ class ActuatorNode(Node):
             lgpio.gpio_write(self._gpio, GPIO_IN2, 0)  # forward direction
 
     def _motor_stop(self) -> None:
-        """Stop motor: cancel PWM, both IN1 and IN2 LOW."""
-        lgpio.tx_pwm(self._gpio, GPIO_IN1, 0, 0)   # cancel PWM
-        lgpio.gpio_write(self._gpio, GPIO_IN1, 0)
+        """Stop motor: duty 0% on IN1, IN2 LOW.
+        Note: freq must never be 0 — lgpio calculates micros=1e6/freq → error.
+        Use duty=0 at valid frequency to hold output LOW via PWM engine."""
+        lgpio.tx_pwm(self._gpio, GPIO_IN1, MOTOR_PWM_FREQ_HZ, 0.0)
         lgpio.gpio_write(self._gpio, GPIO_IN2, 0)
 
     # ------------------------------------------------------------------
@@ -128,7 +129,9 @@ class ActuatorNode(Node):
     # ------------------------------------------------------------------
 
     def destroy_node(self) -> None:
-        self._motor_stop()
+        # Stop PWM before freeing GPIO (duty=0, valid freq — never freq=0)
+        lgpio.tx_pwm(self._gpio, GPIO_IN1, MOTOR_PWM_FREQ_HZ, 0.0)
+        lgpio.gpio_write(self._gpio, GPIO_IN2, 0)
         lgpio.gpio_write(self._gpio, GPIO_RED_LED, 0)
         lgpio.gpio_free(self._gpio, GPIO_ESTOP)
         lgpio.gpio_free(self._gpio, GPIO_RED_LED)

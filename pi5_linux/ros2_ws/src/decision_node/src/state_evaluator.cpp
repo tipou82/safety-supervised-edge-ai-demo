@@ -30,7 +30,10 @@ EvaluatorOutput StateEvaluator::evaluate(const EvaluatorInput& in) const noexcep
     if (in.camera_valid && in.camera_distance_m < CAMERA_SAFE_DISTANCE_M)
         return out(SystemState::SAFE_STATE, TriggerReason::CAMERA_HAND_CRITICAL);
 
-    if (!in.camera_valid && !in.ultrasonic_valid)
+    // Guard: only latch BOTH_SENSORS_INVALID after system has been ready at least once.
+    // At boot (system_ready=false) both sensors being absent is expected — keep INIT.
+    // After release, losing both sensors mid-operation → SAFE_STATE (manual reset required).
+    if (in.system_ready && !in.camera_valid && !in.ultrasonic_valid)
         return out(SystemState::SAFE_STATE, TriggerReason::BOTH_SENSORS_INVALID);
 
     // ── Rule 2: INIT ─────────────────────────────────────────────────────────

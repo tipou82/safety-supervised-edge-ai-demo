@@ -92,12 +92,14 @@ robot actuator and is used to visualise velocity scaling and safe-state stop beh
 1. Pi400 boots, asserts e-stop GPIO 25 LOW (fail-safe), red LED ON.
 2. Pi5 boots, ROS2 nodes start; motor command defaults to `velocity_scale = 0.0`.
 3. health_node begins UDP Q&A watchdog exchange with Pi400 supervisor.
-4. Once Q&A watchdog is healthy, sensors are valid and all nodes are alive → system enters NORMAL.
-5. Pi400 releases e-stop (GPIO 25 HIGH), green LED ON.
-6. In NORMAL with Motor Switch ON: motor rotates at `velocity_scale = 1.0`.
+4. StateEvaluator starts in **INIT** — sensors not yet valid at boot is expected and does not latch SAFE_STATE.
+5. Once Q&A watchdog is healthy, sensors are valid and all nodes are alive → **auto-transitions to NORMAL** (no manual `/reset` needed).
+6. Pi400 releases e-stop (GPIO 25 HIGH), green LED ON.
+7. In NORMAL with Motor Switch ON: motor rotates at `velocity_scale = 1.0`.
 
-**If startup criteria are not met**, the system remains in SAFE_STATE.
-No auto-release. Manual `/reset` required after fault conditions are cleared.
+**If a fault occurs during operation** (both sensors lost, watchdog failure, critical distance), the system
+latches in SAFE_STATE. Manual `/reset` is required after the fault condition is cleared.
+No auto-release from mid-operation SAFE_STATE.
 
 ### Visible Actuator Demonstration with DRV8833 and TT Motor
 
@@ -223,7 +225,17 @@ source ~/safety-supervised-edge-ai-demo/pi5_linux/ros2_ws/install/setup.bash
 ros2 launch safety_demo demo.launch.py
 ```
 
-**Step 3 — Pi5: release to NORMAL**
+**Step 3 — Wait for auto-release to NORMAL**
+
+The system auto-transitions INIT → NORMAL once the Q&A watchdog is healthy and sensors are valid
+(typically 5–10 s after boot). No manual `/reset` is needed on a clean boot.
+
+```bash
+# Monitor state — should reach NORMAL automatically
+ros2 topic echo /system_state
+```
+
+**If a fault occurred and the system latched in SAFE_STATE**, manually reset after clearing the fault:
 ```bash
 ros2 topic pub --once /reset std_msgs/msg/Bool "data: true"
 ```
@@ -331,7 +343,7 @@ python3 tests/fault_injection/fi_05_watchdog_failure.py
 ## Demo Sequence
 
 1. **Main Switch ON** → Pi400 and Pi5 boot; motor command defaults to `velocity_scale = 0.0`; red LED ON (e-stop asserted)
-2. **Startup completes** → Q&A watchdog healthy, sensors valid → NORMAL; green LED ON
+2. **Startup completes** → Q&A watchdog healthy, sensors valid → **auto-enters NORMAL** (no manual `/reset` at boot); green LED ON
 3. **Motor Switch ON** → motor rotates at `velocity_scale = 1.0` (full speed in NORMAL)
 4. **Approach obstacle to warning range** → WARNING; yellow LED ON; motor slows to `velocity_scale = 0.2`
 5. **Approach obstacle to near range (<0.15 m)** → SAFE_STATE; red LED ON; motor stops (`velocity_scale = 0.0`)

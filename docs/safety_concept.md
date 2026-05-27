@@ -64,13 +64,19 @@ No auto-recovery.
 
 ### Startup Release Criterion
 
-The system shall NOT enter NORMAL automatically at boot. Release to NORMAL requires all of:
+The system **auto-transitions from INIT to NORMAL** at boot once all criteria are met — no
+manual `/reset` is required on a clean boot:
 1. Pi400 Q&A watchdog: `failure_counter < 3` (watchdog communication healthy).
 2. All required ROS2 nodes on Pi5 alive (health_node flow check passes).
-3. Sensor validity checks pass (ultrasonic valid within timeout).
+3. At least one sensor path valid (ultrasonic or camera).
 
-If any criterion fails at startup, the system shall enter SAFE_STATE directly.
-Manual `/reset` is required after all conditions are cleared.
+**Boot safety property**: During INIT (`system_ready=false`), both sensors being absent does
+NOT trigger SAFE_STATE — this is expected at boot while nodes are starting up.
+Only after the system has been released (INIT → NORMAL) will losing both sensors latch SAFE_STATE.
+
+**Mid-operation SAFE_STATE**: If a fault occurs after release (watchdog failure, critical
+distance, both sensors lost), the system latches in SAFE_STATE.
+Manual `/reset` is required after all fault conditions are cleared. No auto-recovery.
 
 ### velocity_scale and Motor Actuator Behaviour
 
@@ -101,7 +107,7 @@ motor rotates only if the software state allows it.
 | Obstacle in near range (<0.15 m ultrasonic) | ANY | SAFE_STATE | 0.0 | Red ON |
 | Pi400 watchdog fault (failure_counter ≥ 3) | ANY | SAFE_STATE | 0.0 | Red ON |
 | One sensor path invalid | NORMAL | DEGRADED | 0.2 | Yellow ON |
-| Both sensors invalid | ANY | SAFE_STATE | 0.0 | Red ON |
+| Both sensors invalid (post-release) | NORMAL/WARNING/DEGRADED | SAFE_STATE | 0.0 | Red ON |
 | Manual `/reset` (all conditions clear) | SAFE_STATE | INIT | 0.0 | Green (init) |
 
 ### AI Safety Boundary (unchanged)

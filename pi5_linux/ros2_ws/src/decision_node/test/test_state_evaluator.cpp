@@ -24,7 +24,7 @@ protected:
 
 TEST_F(StateEvaluatorTest, VelocityScaleInit)       { EXPECT_DOUBLE_EQ(StateEvaluator::velocity_scale(SystemState::INIT),       0.0); }
 TEST_F(StateEvaluatorTest, VelocityScaleNormal)     { EXPECT_DOUBLE_EQ(StateEvaluator::velocity_scale(SystemState::NORMAL),     1.0); }
-TEST_F(StateEvaluatorTest, VelocityScaleWarning)    { EXPECT_DOUBLE_EQ(StateEvaluator::velocity_scale(SystemState::WARNING),    0.5); }
+TEST_F(StateEvaluatorTest, VelocityScaleWarning)    { EXPECT_DOUBLE_EQ(StateEvaluator::velocity_scale(SystemState::WARNING),    0.2); }
 TEST_F(StateEvaluatorTest, VelocityScaleDegraded)   { EXPECT_DOUBLE_EQ(StateEvaluator::velocity_scale(SystemState::DEGRADED),  0.2); }
 TEST_F(StateEvaluatorTest, VelocityScaleSafeState)  { EXPECT_DOUBLE_EQ(StateEvaluator::velocity_scale(SystemState::SAFE_STATE),0.0); }
 
@@ -66,11 +66,25 @@ TEST_F(StateEvaluatorTest, InitTriggersSafeStateOnCriticalDistance)
     EXPECT_EQ(ev.evaluate(in).next_state, SystemState::SAFE_STATE);
 }
 
-TEST_F(StateEvaluatorTest, InitTriggersSafeStateWhenBothSensorsGone)
+TEST_F(StateEvaluatorTest, InitStaysInitWhenBothSensorsAbsentAtBoot)
 {
+    // At boot system_ready=false: both sensors not yet valid is expected.
+    // BOTH_SENSORS_INVALID must NOT fire — system must stay in INIT so it
+    // can auto-progress to NORMAL/DEGRADED without requiring a manual /reset.
     auto in = normal_input();
     in.previous_state    = SystemState::INIT;
     in.system_ready      = false;
+    in.camera_valid      = false;
+    in.ultrasonic_valid  = false;
+    EXPECT_EQ(ev.evaluate(in).next_state, SystemState::INIT);
+}
+
+TEST_F(StateEvaluatorTest, BothSensorsGoneAfterReadyTriggersSafeState)
+{
+    // After system has been ready (system_ready=true), losing both sensors
+    // mid-operation must trigger SAFE_STATE (requires manual /reset).
+    auto in = normal_input();
+    in.system_ready      = true;
     in.camera_valid      = false;
     in.ultrasonic_valid  = false;
     EXPECT_EQ(ev.evaluate(in).next_state, SystemState::SAFE_STATE);
@@ -199,7 +213,7 @@ TEST_F(StateEvaluatorTest, DistanceBelowWarnThresholdIsWarning)
     in.distance_m = 0.49f;
     auto out = ev.evaluate(in);
     EXPECT_EQ(out.next_state, SystemState::WARNING);
-    EXPECT_DOUBLE_EQ(out.velocity_scale, 0.5);
+    EXPECT_DOUBLE_EQ(out.velocity_scale, 0.2);
 }
 
 TEST_F(StateEvaluatorTest, DistanceAtWarnThresholdIsNotWarning)

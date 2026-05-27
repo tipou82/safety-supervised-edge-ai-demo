@@ -1,9 +1,11 @@
 [Unit]
 Description=Safety-Supervised Edge AI — Pi400 Watchdog Supervisor
 Documentation=https://github.com/tipou82/safety-supervised-edge-ai-demo
-# Start after network is up (UDP watchdog needs Ethernet 192.168.50.x)
-After=network-online.target
-Wants=network-online.target
+# network.target (not network-online.target) — starts ~5 s after boot instead of ~30 s.
+# GPIO e-stop assertion needs no network; UDP server binds and waits for connections.
+# Watchdog failure counter handles the brief window before Pi5 is ready.
+After=network.target
+Wants=network.target
 
 [Service]
 Type=simple

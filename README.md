@@ -89,17 +89,43 @@ Switch and controlled by the Pi5 through a DRV8833 driver. The motor represents 
 robot actuator and is used to visualise velocity scaling and safe-state stop behaviour.
 
 **Boot sequence (Main Switch ON):**
-1. Pi400 boots, asserts e-stop GPIO 25 LOW (fail-safe), red LED ON.
-2. Pi5 boots, ROS2 nodes start; motor command defaults to `velocity_scale = 0.0`.
-3. health_node begins UDP Q&A watchdog exchange with Pi400 supervisor.
-4. StateEvaluator starts in **INIT** — sensors not yet valid at boot is expected and does not latch SAFE_STATE.
-5. Once Q&A watchdog is healthy, sensors are valid and all nodes are alive → **auto-transitions to NORMAL** (no manual `/reset` needed).
-6. Pi400 releases e-stop (GPIO 25 HIGH), green LED ON.
-7. In NORMAL with Motor Switch ON: motor rotates at `velocity_scale = 1.0`.
+1. Linux boots on both Pis — kernel + systemd start (~5–10 s). No LEDs active yet.
+2. `network.target` reached — networking started. systemd launches both services.
+3. Pi400 supervisor starts, **asserts e-stop GPIO 25 LOW** (fail-safe), red LED ON.
+4. Pi5 ROS2 nodes start; `ultrasonic_node` becomes valid within seconds.
+5. Camera nodes (MediaPipe + YOLOv8n) load models — takes ~5–15 s.
+   While camera is still loading: one sensor valid, one not → **DEGRADED** → yellow LED ON.
+   Pi400 e-stop still asserted → red LED still on via wired-OR. **Both red and yellow on.**
+6. Camera becomes valid + Q&A watchdog healthy → StateEvaluator **auto-transitions to NORMAL**.
+7. Pi400 releases e-stop (GPIO 25 HIGH), red LED off, **green LED ON**.
+8. In NORMAL with Motor Switch ON: motor rotates at `velocity_scale = 1.0`.
+
+**Observed LED sequence at every cold boot:**
+```
+[0–10 s]   No LEDs          — Linux boot, no application running
+[~10 s]    RED only          — Pi400 supervisor started, e-stop asserted
+[~10–20 s] RED + YELLOW      — Pi5 DEGRADED (ultrasonic valid, camera still loading)
+[~20–40 s] GREEN only        — NORMAL (both sensors valid, watchdog healthy)
+```
+Times are approximate and depend on SD card speed and model-load time.
 
 **If a fault occurs during operation** (both sensors lost, watchdog failure, critical distance), the system
 latches in SAFE_STATE. Manual `/reset` is required after the fault condition is cleared.
 No auto-release from mid-operation SAFE_STATE.
+
+#### Why ~30 s before the first red LED?
+
+The systemd service files originally used `After=network-online.target`, which waits until
+the network interface has a fully confirmed IP address. On Raspberry Pi OS this can take
+20–40 s (DHCP negotiation or interface bring-up delay).
+
+**Speedup fix** (already applied): changed both services to `After=network.target`.
+`network.target` is reached ~5 s after boot (NetworkManager started, static IP on `eth0`
+is configured shortly after). Applications handle early UDP retries through the watchdog
+failure counter — no hard dependency on a fully-online network at process start.
+
+Without the fix: first red LED at ~30–40 s.
+With the fix: first red LED at ~8–12 s (remaining time = Linux boot + systemd startup).
 
 ### Visible Actuator Demonstration with DRV8833 and TT Motor
 

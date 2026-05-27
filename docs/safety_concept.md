@@ -78,6 +78,35 @@ Only after the system has been released (INIT → NORMAL) will losing both senso
 distance, both sensors lost), the system latches in SAFE_STATE.
 Manual `/reset` is required after all fault conditions are cleared. No auto-recovery.
 
+### Observable Boot LED Sequence
+
+At every cold boot the following LED sequence is visible:
+
+| Time (approx.) | LEDs | System phase |
+|---|---|---|
+| 0–10 s | All off | Linux kernel + systemd starting — no application running |
+| ~10 s | **Red only** | Pi400 supervisor started; e-stop GPIO 25 asserted LOW (fail-safe); red LED via Pi400 wired-OR |
+| ~10–20 s | **Red + Yellow** | Pi5 DEGRADED: `ultrasonic_node` valid, camera nodes still loading MediaPipe/YOLOv8n models |
+| ~20–40 s | **Green only** | NORMAL: both sensors valid, Q&A watchdog healthy; Pi400 releases e-stop; motor ready |
+
+Times are approximate and depend on SD card speed and model-load time.
+
+**Why all LEDs are off at power-on**: GPIO pins default to input (high-impedance) on boot.
+The e-stop and LED GPIOs are not driven until the application scripts start. The system is
+unpowered from a motor perspective (DRV8833 receives no PWM) during this window.
+
+**Why ~10 s before the first red LED**: Both service files use `After=network.target`.
+`network.target` is reached ~5–10 s after boot (NetworkManager started, static IP on `eth0`
+configured). Using `network-online.target` (the original setting) would delay this to
+~30–40 s (DHCP/interface confirmation). The application layer handles early UDP retries
+through the watchdog failure counter.
+
+**Why Red + Yellow overlap**: `ultrasonic_node` initialises in ~1–2 s (simple GPIO timing loop).
+MediaPipe and YOLOv8n load serialised model weights from disk — typically 5–15 s on Pi5.
+During this window the system is in DEGRADED (one sensor valid), which activates the yellow LED.
+The Pi400 e-stop is still asserted (watchdog not yet healthy) — red LED remains on via wired-OR.
+Both LEDs on simultaneously is correct and expected behaviour.
+
 ### velocity_scale and Motor Actuator Behaviour
 
 Motor speed is controlled by `velocity_scale` (0.0 = stop, 1.0 = full speed):

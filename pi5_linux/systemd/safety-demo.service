@@ -1,9 +1,11 @@
 [Unit]
 Description=Safety-Supervised Edge AI — Pi5 ROS2 Stack
 Documentation=https://github.com/tipou82/safety-supervised-edge-ai-demo
-# Wait for network (UDP watchdog to Pi400 on 192.168.50.20)
-After=network-online.target
-Wants=network-online.target
+# network.target (not network-online.target) — starts ~5 s after boot instead of ~30 s.
+# UDP watchdog will retry via failure counter until Pi400 is reachable;
+# static IP on eth0 (192.168.50.10) is configured shortly after network.target.
+After=network.target
+Wants=network.target
 
 [Service]
 Type=simple

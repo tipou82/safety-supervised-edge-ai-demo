@@ -11,6 +11,7 @@
 #include "std_msgs/msg/bool.hpp"
 #include "std_msgs/msg/string.hpp"
 #include "std_msgs/msg/int32.hpp"
+#include "std_msgs/msg/float32.hpp"
 
 #include "decision_node/state_evaluator.hpp"
 
@@ -36,10 +37,11 @@ public:
       current_state_(SystemState::INIT)
     {
         // Publishers
-        cmd_vel_pub_   = create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 1);
-        sys_state_pub_ = create_publisher<std_msgs::msg::String>("/system_state", 5);
-        diag_pub_      = create_publisher<diagnostic_msgs::msg::DiagnosticArray>(
-                             "/diagnostics", 5);
+        cmd_vel_pub_      = create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 1);
+        sys_state_pub_    = create_publisher<std_msgs::msg::String>("/system_state", 5);
+        vel_scale_pub_    = create_publisher<std_msgs::msg::Float32>("/velocity_scale", 1);
+        diag_pub_         = create_publisher<diagnostic_msgs::msg::DiagnosticArray>(
+                                "/diagnostics", 5);
 
         // Subscriptions
         obstacles_sub_ = create_subscription<sensor_msgs::msg::Range>(
@@ -165,10 +167,15 @@ private:
             current_state_ = output.next_state;
         }
 
-        // Publish scaled velocity (base motion deferred — publishes zero for now)
+        // Publish velocity_scale — actuator_node maps this to DRV8833 PWM
+        std_msgs::msg::Float32 vs_msg;
+        vs_msg.data = output.velocity_scale;
+        vel_scale_pub_->publish(vs_msg);
+
+        // Publish cmd_vel (kept for ROS2 ecosystem compatibility)
         geometry_msgs::msg::Twist cmd;
-        cmd.linear.x  = 0.0 * output.velocity_scale;
-        cmd.angular.z = 0.0 * output.velocity_scale;
+        cmd.linear.x  = output.velocity_scale;  // 0.0–1.0 normalised
+        cmd.angular.z = 0.0;
         cmd_vel_pub_->publish(cmd);
 
         // Publish state string for observability
@@ -240,6 +247,7 @@ private:
 
     rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr             cmd_vel_pub_;
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr                 sys_state_pub_;
+    rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr                vel_scale_pub_;
     rclcpp::Publisher<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr diag_pub_;
     rclcpp::Subscription<sensor_msgs::msg::Range>::SharedPtr   obstacles_sub_;
     rclcpp::Subscription<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr health_sub_;

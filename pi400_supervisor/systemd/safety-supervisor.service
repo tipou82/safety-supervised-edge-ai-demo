@@ -11,11 +11,11 @@ Wants=network.target
 Type=simple
 User=yunpeng
 WorkingDirectory=/home/yunpeng/safety-supervised-edge-ai-demo
-ExecStart=/usr/bin/python3 /home/yunpeng/safety-supervised-edge-ai-demo/pi400_supervisor/scripts/qnx_wdg_server.py
+ExecStart=/usr/bin/python3 /home/yunpeng/safety-supervised-edge-ai-demo/pi400_supervisor/scripts/watchdog_server.py
 Restart=on-failure
 RestartSec=3s
 # GPIO: Pi400 asserts e-stop LOW at process start (fail-safe default in code)
-# No additional pre-start needed — qnx_wdg_server.py handles GPIO init
+# No additional pre-start needed — watchdog_server.py handles GPIO init
 
 [Install]
 WantedBy=multi-user.target

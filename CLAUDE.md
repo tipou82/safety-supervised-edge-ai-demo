@@ -17,8 +17,8 @@ The repository is in early implementation phase. Once code is written, expected 
 cd pi5_linux/ros2_ws && colcon build
 ros2 launch safety_demo demo.launch.py
 
-# QNX supervisor (Pi400)
-cd pi400_qnx && qcc -o qnx_supervisor *.c
+# Pi400 supervisor (run on Pi400)
+python3 pi400_supervisor/scripts/watchdog_server.py
 
 # Tests
 pytest tests/unit/
@@ -36,26 +36,27 @@ No CI configuration or Makefile exists yet.
 Two physically separate processors enforce **Freedom From Interference (FFI)**:
 
 ```
-Raspberry Pi 5 (Ubuntu 22.04 + ROS2 Humble) — perception & planning
-  ├── camera_ai_node     YOLOv8n/MobileNet inference @ 10 Hz
-  ├── ultrasonic_node    HC-SR04 x3 @ 10 Hz (2–400 cm)
-  ├── decision_node      obstacle avoidance, sensor fusion
-  ├── actuator_node      motor PWM via L298N, monitors e-stop GPIO @ 100 Hz
-  └── health_node        heartbeat output on GPIO 17 @ 10 Hz
+Raspberry Pi 5 (RPi OS Bookworm + ROS2 Humble) — perception & planning
+  ├── hand_detection_node   MediaPipe Hands, owns camera, 10 Hz
+  ├── object_detection_node YOLOv8n on hand ROI, 10 Hz
+  ├── ultrasonic_node       Grove Ultrasonic Ranger GPIO 23, 20 Hz
+  ├── decision_node         StateEvaluator C++20, 50 Hz
+  ├── actuator_node         DRV8833 GPIO 12/16, polls e-stop GPIO 25 @ 100 Hz
+  └── health_node           UDP Q&A client, LED control, flow check
           │
-          │  GPIO (heartbeat + emergency stop)
-          │  Shared memory /dev/shm/safety_state (CRC32-validated, 4 KB)
+          │  UDP Q&A watchdog (Ethernet 192.168.50.x, port 9001)
+          │  GPIO 25 e-stop (direct wire, active-low)
           │
-Raspberry Pi 400 (QNX 7.1 or PREEMPT_RT Linux fallback) — safety supervision
-  ├── qnx_wdg_server     watchdog cycle 10 ms, FIFO priority 250
-  └── safe_state_ctrl    e-stop assertion, FIFO priority 255 (highest)
+Raspberry Pi 400 (RPi OS Bookworm) — deterministic Linux supervisor
+  └── watchdog_server.py    UDP server, 30ms window, CRC-16, failure counter
+                            GPIO 25 e-stop output, GPIO 22 red LED output
 ```
 
 ### Safety-Critical Communication
 
-- **Heartbeat:** GPIO 17 (Pi5 out) → GPIO (Pi400 in), 10 Hz ±20%, 500 ms timeout
-- **Emergency stop:** GPIO 27 (Pi5 in, active-low) ← GPIO (Pi400 out), asserted at boot (fail-safe)
-- **Shared memory:** Magic `0xCAFEBABE` + CRC32 (polynomial `0xEDB88320`); Linux writes, QNX reads-only
+- **UDP Q&A Watchdog:** Pi400 → Pi5 seed, Pi5 → Pi400 response within 15–30 ms window
+- **Emergency stop:** GPIO 25 (Pi400 out, active-low) → GPIO 25 (Pi5 in), asserted at boot (fail-safe)
+- **Status feedback:** Pi400 → Pi5 UDP status packet after each cycle (failure_counter, state)
 
 ### System States
 
@@ -82,14 +83,18 @@ Raspberry Pi 400 (QNX 7.1 or PREEMPT_RT Linux fallback) — safety supervision
 
 **Requirements tagging:** All requirements use Priority (Critical/High/Medium), ASIL level, and traceability IDs. See `requirements/traceability.csv` for the full mapping.
 
-**Safety path rule:** The QNX supervisor uses **only rule-based deterministic logic** — AI model outputs must never reach the safety path.
+**Safety path rule:** The Pi400 supervisor uses **only rule-based deterministic logic** — AI model outputs must never reach the safety path.
 
 **GPIO assignments** (safety-critical pins are marked):
-- GPIO 17: heartbeat out (**safety-critical**)
-- GPIO 27: e-stop in (**safety-critical**, active-low)
-- GPIO 22/10/9/11: motor direction (L298N IN1–4)
-- GPIO 18/12: motor speed PWM (1 kHz)
-- GPIO 23/5/13: ultrasonic TRIG; GPIO 24/6/19: ECHO (voltage-divided 5V→3.3V)
+- GPIO 25 Pi5 in: e-stop input from Pi400 (**safety-critical**, active-low)
+- GPIO 25 Pi400 out: e-stop output to Pi5 (**safety-critical**, active-low)
+- GPIO 17 Pi5: green LED (NORMAL indicator)
+- GPIO 27 Pi5: yellow LED (WARNING/DEGRADED indicator)
+- GPIO 22 Pi5/Pi400: red LED wired-OR via 1N4148 (SAFE_STATE indicator)
+- GPIO 18 Pi5: buzzer (WARNING/DEGRADED)
+- GPIO 12 Pi5: DRV8833 IN1 (motor PWM)
+- GPIO 16 Pi5: DRV8833 IN2 (motor direction)
+- GPIO 23 Pi5: Grove Ultrasonic Ranger SIG
 
 ## Documentation Map
 
@@ -104,7 +109,7 @@ Raspberry Pi 400 (QNX 7.1 or PREEMPT_RT Linux fallback) — safety supervision
 | `docs/safety_mechanisms.md` | **All safety mechanisms** — Q&A watchdog, e-stop, StateEvaluator, sensor monitoring, MMU isolation, LEDs, FTTI (single source of truth) |
 | `docs/architecture.md` | Component descriptions, inter-domain connections |
 | `docs/safety_concept.md` | Safety philosophy, hazard analysis, system states (brief) |
-| `docs/qnx_supervisor.md` | QNX RTOS rationale, process architecture, Linux fallback |
+| `docs/supervisor_design.md` | Pi400 supervisor design — watchdog protocol, GPIO logic, timing |
 | `docs/ffi_argument.md` | FFI argument narrative, effectiveness ratings, gap analysis |
 | `requirements/system_requirements.md` | 30+ functional/safety/performance requirements |
 | `requirements/safety_requirements.md` | Hazard analysis, FSRs, ASIL decomposition |

@@ -32,7 +32,7 @@ the `StateEvaluator` priority rules in `src/decision_node/src/state_evaluator.cp
 | camera_ai_node | M4 — MediaPipe Hands + YOLOv8n |
 | decision_node | M3/M5 — StateEvaluator C++20, watchdog_failure_counter wired |
 | health_node | M5 — UDP Q&A watchdog client |
-| Pi400 supervisor | M5 — qnx_wdg_server.py, GPIO 25 + GPIO 22 |
+| Pi400 supervisor | M5 — watchdog_server.py, GPIO 25 + GPIO 22 |
 
 ---
 

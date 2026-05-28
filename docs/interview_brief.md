@@ -45,7 +45,7 @@ health_node          ─── UDP Q&A client, flow check, LEDs/buzzer
                             │
                      [dedicated Ethernet]
                             │
-Pi400 qnx_wdg_server ── UDP Q&A server, GPIO 25 + GPIO 22 control
+Pi400 watchdog_server ── UDP Q&A server, GPIO 25 + GPIO 22 control
 ```
 
 ---

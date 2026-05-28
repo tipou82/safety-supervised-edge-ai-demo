@@ -26,7 +26,7 @@ hold under stress conditions. Pass/fail is determined by the engineer.
 
 ## Pre-conditions (all tests)
 
-- Pi400: `qnx_wdg_server.py` running (M7 version — 30ms window, CRC/seq)
+- Pi400: `watchdog_server.py` running (M7 version — 30ms window, CRC/seq)
 - Pi5: `ros2 launch safety_demo demo.launch.py` (all 7 nodes running)
 - `/reset` published — system in NORMAL or DEGRADED
 - `/watchdog_failure_counter` echoing 0

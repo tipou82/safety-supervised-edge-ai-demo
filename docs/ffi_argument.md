@@ -21,16 +21,16 @@ Per ISO 26262-6:2018 Clause 7.4.7, FFI ensures that a lower-ASIL or non-safety e
 
 ### 1. Spatial Independence
 
-**Measure**: Physical processor separation between Linux (Pi5) and QNX (Pi400).
+**Measure**: Physical processor separation between Linux/ROS2 (Pi5) and Linux supervisor (Pi400).
 
 **Implementation**:
 - Linux/ROS2 domain runs entirely on Pi5 processor
-- QNX-inspired supervisor runs entirely on Pi400 processor
+- Linux supervisor runs entirely on Pi400 processor
 - No shared memory within the same address space
 - No DMA between processors
 
 **Interference Prevention**:
-- Linux kernel panic cannot corrupt QNX supervisor memory
+- Linux kernel panic on Pi5 cannot corrupt Pi400 supervisor process
 - AI inference memory exhaustion (e.g., GPU OOM) isolated to Pi5
 - Buffer overflows in ROS2 nodes do not affect supervisor
 
@@ -44,8 +44,8 @@ Per ISO 26262-6:2018 Clause 7.4.7, FFI ensures that a lower-ASIL or non-safety e
 **Measure**: Deterministic watchdog timeout independent of Linux timing.
 
 **Implementation**:
-- Supervisor runs on QNX RTOS with deterministic scheduling (or PREEMPT_RT Linux)
-- Watchdog timeout threshold (500 ms) based on supervisor's local monotonic clock
+- Supervisor runs on Linux, watchdog cycle driven by local monotonic clock
+- Watchdog timeout threshold based on supervisor's local monotonic clock
 - Safety decisions bounded to <150 ms regardless of Linux load
 
 **Interference Prevention**:
@@ -107,7 +107,7 @@ Per ISO 26262-6:2018 Clause 7.4.7, FFI ensures that a lower-ASIL or non-safety e
 
 | Source | Target | Mitigation | Effectiveness |
 |--------|--------|-----------|---------------|
-| Linux memory fault | QNX memory | Separate processors | **Strong** |
+| Linux memory fault (Pi5) | Pi400 supervisor process | Separate processors | **Strong** |
 | AI GPU OOM | Supervisor execution | Separate processors | **Strong** |
 | ROS2 process crash | Supervisor process | Separate processors | **Strong** |
 | Power supply fault | Both processors | None (common PSU) | **Weak** |
@@ -117,7 +117,7 @@ Per ISO 26262-6:2018 Clause 7.4.7, FFI ensures that a lower-ASIL or non-safety e
 | Source | Target | Mitigation | Effectiveness |
 |--------|--------|-----------|---------------|
 | AI inference delay | Watchdog detection | Local timeout on supervisor | **Strong** |
-| Linux scheduler jitter | Supervisor cycle | QNX deterministic scheduling | **Moderate** (QNX) / **Weak** (Linux fallback) |
+| Linux scheduler jitter (Pi5) | Supervisor cycle | Independent processor + clock | **Moderate** |
 | ROS2 callback storm | Safety latency | Independent supervisor clock | **Strong** |
 | Thermal throttling | Supervisor timing | Separate processor | **Moderate** (shared environment) |
 
@@ -180,7 +180,7 @@ This architecture addresses specific challenges of AI in safety-critical systems
 ## Interview Talking Points
 
 **"How does your architecture provide FFI?"**
-> "I use physical processor separation to prevent spatial interference between the AI perception domain on Linux and the safety supervisor on QNX. The supervisor makes safety decisions based on its own local clock, so temporal interference from AI inference delays doesn't affect safety response time. Communication uses simple GPIO heartbeat with CRC-validated shared memory as backup, avoiding complex middleware that could introduce interference."
+> "I use physical processor separation to prevent spatial interference between the AI perception domain on Pi5 and the safety supervisor on Pi400. The supervisor makes safety decisions based on its own local clock, so temporal interference from AI inference delays doesn't affect safety response time. Communication uses a UDP Q&A watchdog over dedicated Ethernet with CRC-16 and sequence counter, completely independent of the ROS2 middleware stack."
 
 **"Is this approach sufficient for ASIL-B?"**
 > "The architectural pattern is inspired by ASIL-B approaches, but this demonstrator doesn't achieve full ASIL-B compliance. I'd need quantitative interference analysis, certified RTOS and tools, hardware fault coverage with redundancy, and a formal development process with independent assessment. This demo shows I understand the concepts and can implement the technical measures."

@@ -190,7 +190,7 @@ How the current architecture addresses each safety goal:
 |---|---|---|---|
 | SG-001 | StateEvaluator (software) + GPIO 25 (hardware) | decision_node C++20; Pi400 GPIO 25 | 33 gtest; FI-05 PASS; e-stop wire verified |
 | SG-001 | Camera distance fusion | hand_detection_node pinhole model | SYS-SAFE-012; 20cm trigger verified 2026-05-11 |
-| SG-002 | Q&A watchdog + flow check gate | health_node UDP; qnx_wdg_server | FI-05 PASS; FFI-TEMPORAL PASS |
+| SG-002 | Q&A watchdog + flow check gate | health_node UDP; watchdog_server | FI-05 PASS; FFI-TEMPORAL PASS |
 | SG-003 | StateEvaluator DEGRADED velocity | state_evaluator.cpp vel_scale=0.2 | 27+ gtest; FI-01 PASS |
 
 ---

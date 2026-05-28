@@ -13,7 +13,7 @@ fusion across heterogeneous compute platforms.
 
 | Capability | Implementation |
 |---|---|
-| Dual-processor FFI architecture | Pi5 (Linux/ROS2) + Pi400 (QNX-inspired supervisor) |
+| Dual-processor FFI architecture | Pi5 (Linux/ROS2) + Pi400 (Linux supervisor) |
 | AI perception with safety supervision | MediaPipe Hands + YOLOv8n, monitored by deterministic rule-based logic |
 | Q&A external watchdog | UDP challenge/response, 30ms window, CRC-16 + sequence counter (E2E) |
 | Hardware e-stop | GPIO 25 direct wire Pi400→Pi5, active-low, fail-safe at boot |
@@ -31,7 +31,7 @@ fusion across heterogeneous compute platforms.
 | Component | Role |
 |---|---|
 | Raspberry Pi 5 (8 GB) | Linux/ROS2 domain — AI perception, state machine |
-| Raspberry Pi 400 | QNX-inspired supervisor — watchdog server, hardware e-stop |
+| Raspberry Pi 400 | Linux supervisor — watchdog server, hardware e-stop |
 | Raspberry Pi Camera Module 3 (IMX708) | Hand and object detection |
 | Grove Ultrasonic Ranger (GPIO 23) | Precise proximity measurement (2–350 cm) |
 | Traffic-light LED module (GPIO 17/27/22) | System state indicators |
@@ -164,8 +164,8 @@ graph TB
         AN["actuator_node\nGPIO 25 poll 100Hz"]
     end
 
-    subgraph Pi400["Raspberry Pi 400 — QNX-Inspired Supervisor"]
-        WDG["qnx_wdg_server\nUDP Q&A 30ms window"]
+    subgraph Pi400["Raspberry Pi 400 — Linux Supervisor"]
+        WDG["wdg_server\nUDP Q&A 30ms window"]
     end
 
     subgraph MotorDomain["Motor Domain (separate supply)"]
@@ -241,7 +241,7 @@ source install/setup.bash
 
 **Step 1 — Pi400: start supervisor** (SSH into Pi400)
 ```bash
-python3 ~/safety-supervised-edge-ai-demo/pi400_supervisor/scripts/qnx_wdg_server.py
+python3 ~/safety-supervised-edge-ai-demo/pi400_supervisor/scripts/watchdog_server.py
 ```
 
 **Step 2 — Pi5: launch ROS2 stack** (SSH into Pi5)
@@ -427,10 +427,6 @@ See **[`docs/safety_mechanisms.md`](docs/safety_mechanisms.md)** for full detail
 | M7 | FFI Verification | 3 interference tests PASS; safety mechanisms centralised |
 
 ---
-
-## Licence
-
-Educational demonstrator — see [LICENSE](LICENSE) file.
 
 ## Contact
 

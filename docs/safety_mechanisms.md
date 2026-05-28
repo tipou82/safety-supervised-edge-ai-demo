@@ -26,8 +26,8 @@ Pi5 (Linux / ROS2)          ← AI perception domain (development)
         │  UDP Q&A watchdog (Ethernet 192.168.50.x)   SM-1
         │  GPIO 25 e-stop (direct wire)                SM-2
         │
-Pi400 (Ubuntu / QNX-inspired)  ← Safety supervisor domain (deterministic)
-  qnx_wdg_server
+Pi400 (Ubuntu / Linux)          ← Safety supervisor domain (deterministic)
+  watchdog_server
 ```
 
 AI outputs **never enter the safety path**. The supervisor makes decisions based solely on
@@ -99,7 +99,7 @@ Pipeline failure directly triggers safe state via the hardware path.
 
 ### Implementation files
 
-- `pi400_supervisor/scripts/qnx_wdg_server.py` — Pi400 server
+- `pi400_supervisor/scripts/watchdog_server.py` — Pi400 server
 - `pi5_linux/ros2_ws/src/health_node/health_node/health_node.py` — Pi5 client + flow check
 
 ---

@@ -115,7 +115,7 @@ AUTOSAR E2E library. It corresponds instead to:
 | Automotive concept | Standard | Demonstrator mapping |
 |---|---|---|
 | Challenge-response watchdog | ISO 11898-1 / IEC 61508 | UDP Q&A (seed XOR mask) |
-| External watchdog IC | MAX6369, TPS3813 (SPI/I2C) | Pi400 qnx_wdg_server via UDP |
+| External watchdog IC | MAX6369, TPS3813 (SPI/I2C) | Pi400 watchdog_server via UDP |
 | Watchdog Manager (WdgM) | AUTOSAR BSW WdgM | health_node + flow check |
 | Supervised entities | WdgM alive supervision | Flow check on decision_node + ultrasonic_node |
 
@@ -134,7 +134,7 @@ watchdog architecture. Mapping:
 | Checkpoint | health_node flow check tick (20ms) |
 | Mode manager | StateEvaluator state (NORMAL/DEGRADED/SAFE_STATE) |
 | Watchdog trigger (WdgIf) | UDP Q&A response to Pi400 |
-| External watchdog | Pi400 qnx_wdg_server |
+| External watchdog | Pi400 watchdog_server |
 | Safe state action | GPIO 25 assertion (hardware) |
 
 **Key difference**: AUTOSAR WdgM runs on the same ECU and uses hardware watchdog timers.
@@ -247,5 +247,5 @@ that AUTOSAR E2E and WdgM implement in production automotive systems.
 - IEC 61508-2:2010 Clause 7.4.2 (Communication integrity)
 - CRC Polynomial Zoo: https://crccalc.com
 - `docs/safety_mechanisms.md` SM-1 (UDP Q&A protocol details)
-- `pi400_supervisor/scripts/qnx_wdg_server.py` (implementation)
+- `pi400_supervisor/scripts/watchdog_server.py` (implementation)
 - `pi5_linux/ros2_ws/src/health_node/health_node/health_node.py` (client)

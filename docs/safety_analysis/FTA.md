@@ -157,17 +157,17 @@ flowchart TD
 
     G12 --> OR7{{OR}}
     OR7 --> G14["G14: Pi400 fails\nto detect timeout"]
-    OR7 --> BE17(["◇ BE17: Pi400\nqnx_wdg_server crash"])
+    OR7 --> BE17(["◇ BE17: Pi400\nwatchdog_server crash"])
 
     G14 --> OR8{{OR}}
     OR8 --> BE18(["◇ BE18: Pi400\nmonotonic clock failure"])
     OR8 --> BE19(["◇ BE19: Sustained UDP\ndelivery to Pi5\nbut not from Pi5\n(asymmetric loss)"])
-    OR8 --> BE20(["◇ BE20: failure_counter\nlogic error in\nqnx_wdg_server"])
+    OR8 --> BE20(["◇ BE20: failure_counter\nlogic error in\nwatchdog_server"])
 
     G13 --> OR9{{OR}}
     OR9 --> BE21(["◇ BE21: GPIO 25 wire\nbreak (SPOF F-020)"])
     OR9 --> BE22(["◇ BE22: Pi400 GPIO\ndriver stuck HIGH\n(SPOF F-022)"])
-    OR9 --> BE23(["◇ BE23: lgpio crash\nin qnx_wdg_server"])
+    OR9 --> BE23(["◇ BE23: lgpio crash\nin watchdog_server"])
 ```
 
 ### 3.2 Minimal Cut Sets

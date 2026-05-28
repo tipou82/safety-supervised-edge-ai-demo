@@ -33,7 +33,7 @@ classDiagram
     class RaspberryPi400 {
         <<block>>
         +os : Ubuntu 22.04
-        +role : Safety supervisor (QNX-inspired)
+        +role : Safety supervisor (Linux)
         +gpio_chip : gpiochip0 (BCM2711)
     }
 
@@ -88,10 +88,10 @@ classDiagram
         +nodes : 7
     }
 
-    class QNXSupervisorDomain {
+    class LinuxSupervisorDomain {
         <<domain>>
         +processor : Raspberry Pi 400
-        +os : Ubuntu 22.04 (QNX-inspired)
+        +os : Raspberry Pi OS Bookworm
     }
 
     class HealthMonitorNode {
@@ -173,7 +173,7 @@ classDiagram
     LinuxROSDomain  *-- ActuatorNode
     DecisionNode    *-- StateEvaluator
 
-    QNXSupervisorDomain *-- QAWatchdogServer
+    LinuxSupervisorDomain *-- QAWatchdogServer
 
     HandDetectionNode --> ObjectDetectionNode : hand_roi CompressedImage
     QAWatchdogServer  --> ActuatorNode        : GPIO 25 e-stop
@@ -198,8 +198,8 @@ graph LR
         RED_PI5["Red LED GPIO 22 via D1"]
     end
 
-    subgraph Pi400["Raspberry Pi 400 — QNX-Inspired Supervisor"]
-        WDG["qnx_wdg_server\nUDP 30ms window\nCRC-16 plus seq\nfailure counter"]
+    subgraph Pi400["Raspberry Pi 400 — Linux Supervisor"]
+        WDG["wdg_server\nUDP 30ms window\nCRC-16 plus seq\nfailure counter"]
         RED_PI400["Red LED GPIO 22 via D2"]
     end
 
@@ -247,9 +247,9 @@ graph TB
             end
         end
 
-        subgraph QNX["QNX-Inspired Supervisor Domain  Pi400"]
+        subgraph SUPERVISOR["Linux Supervisor Domain  Pi400"]
             subgraph MONITOR["Safety Monitor"]
-                WDG2["qnx_wdg_server\nUDP 30ms window\nCRC-16 plus seq"]
+                WDG2["wdg_server\nUDP 30ms window\nCRC-16 plus seq"]
             end
             subgraph SAFETY["Safe State Enforcement"]
                 SSC["GPIO 25 active-low e-stop\nGPIO 22 red LED"]
@@ -337,7 +337,7 @@ requirementDiagram
 
     element qaWatchdog {
         type: supervisor
-        docref: pi400_supervisor/scripts/qnx_wdg_server.py
+        docref: pi400_supervisor/scripts/watchdog_server.py
     }
 
     element handDetection {
@@ -412,7 +412,7 @@ stateDiagram-v2
 
 ```mermaid
 sequenceDiagram
-    participant Pi400 as Pi400 qnx_wdg_server
+    participant Pi400 as Pi400 wdg_server
     participant HN as health_node
     participant UN as ultrasonic_node
     participant HDN as hand_detection_node
@@ -454,7 +454,7 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant Pi400 as Pi400 qnx_wdg_server
+    participant Pi400 as Pi400 wdg_server
     participant UDP as UDP Ethernet 192.168.50.x
     participant HN as health_node UDP thread
     participant FC as health_node flow check
@@ -545,7 +545,7 @@ GPIO 25 path is independent of decision_node and StateEvaluator (FFI boundary).
 
 ```mermaid
 sequenceDiagram
-    participant Pi400 as Pi400 qnx_wdg_server
+    participant Pi400 as Pi400 wdg_server
     participant GPIO as GPIO 25 Wire Pi400 to Pi5
     participant AN as Pi5 actuator_node poll 100Hz
     participant DN as Pi5 decision_node StateEvaluator

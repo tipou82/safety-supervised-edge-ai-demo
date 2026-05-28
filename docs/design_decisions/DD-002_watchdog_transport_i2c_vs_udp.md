@@ -117,7 +117,7 @@ Requires re-wiring I2C connection from GPIO 2/3 to GPIO 18/19 on both boards.
 ### Description
 
 Pi5 health_node sends watchdog responses via UDP to Pi400
-(`192.168.50.20:9001`). Pi400 `qnx_wdg_server.py` acts as UDP server,
+(`192.168.50.20:9001`). Pi400 `watchdog_server.py` acts as UDP server,
 generates seeds, validates responses and timing. No I2C slave needed.
 
 ### Pros

@@ -15,7 +15,7 @@ All documentation files were reviewed for wording consistency, safety claim accu
 | README.md | Pass | Correct disclaimers, demonstrator scope clearly stated |
 | docs/architecture.md | Pass | FFI-inspired wording consistent; QNX domain described as "QNX-inspired or Linux Fallback" |
 | docs/safety_concept.md | Pass | ASIL-B-inspired framing consistent throughout; clear "what is NOT claimed" section |
-| docs/qnx_supervisor.md | Fixed | QNX product certification bullet clarified to prevent misreading as project claim |
+| docs/supervisor_design.md | Fixed | QNX product certification bullet clarified to prevent misreading as project claim |
 | docs/ffi_argument.md | Pass | Honest effectiveness ratings; clear gap analysis; good interview talking points |
 | requirements/system_requirements.md | Pass | All ASIL tags use "B-inspired"; explicit non-certification assumption documented |
 | requirements/safety_requirements.md | Pass | Compliance statement is accurate; ASIL decomposition correctly hedged |
@@ -33,7 +33,7 @@ All documentation files were reviewed for wording consistency, safety claim accu
 
 ### Issue Found and Corrected
 
-**File**: `docs/qnx_supervisor.md`
+**File**: `docs/supervisor_design.md`
 **Issue**: Bullet "Certified to IEC 61508 SIL 3, ISO 26262 ASIL D (when properly qualified)" could be read as a project-level certification claim, even though the surrounding context clarified it was a product-level capability.
 **Fix applied**: Reworded to "Certifiable to IEC 61508 SIL 3, ISO 26262 ASIL D as a product (requires qualified BSP and tool chain — NOT applicable to this Raspberry Pi demonstrator)".
 
@@ -59,7 +59,7 @@ The following wording conventions are applied consistently across all documents:
 
 2. **SysML model not validated by tooling** — `docs/sysml/architecture.sysml` is a text artifact; no SysML v2 tooling execution has been performed. The model should be considered illustrative.
 
-3. **Timing values are estimates** — All WCET figures and latency budgets in `docs/qnx_supervisor.md` are design targets, not measured values. This is clearly noted ("TBD" in the measurement columns).
+3. **Timing values are estimates** — All WCET figures and latency budgets in `docs/supervisor_design.md` are design targets, not measured values. This is clearly noted ("TBD" in the measurement columns).
 
 4. **Traceability CSV has all items as TODO** — Correct for the current phase (documentation only). Implementation and test completion will update these.
 

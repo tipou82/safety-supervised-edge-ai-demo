@@ -4,7 +4,7 @@
 
 ## Overview
 
-This demonstrator implements a dual-processor architecture with FFI-inspired separation between the AI perception domain (Linux/ROS2) and the safety monitoring domain (QNX-inspired supervisor).
+This demonstrator implements a dual-processor architecture with FFI-inspired separation between the AI perception domain (Linux/ROS2) and the safety monitoring domain (Linux supervisor).
 
 ### System Power and Startup Concept
 
@@ -44,7 +44,7 @@ graph TB
         Health[Health Monitor<br/>Aliveness Beacon]
     end
 
-    subgraph Pi400["Raspberry Pi 400 - QNX-Inspired Domain"]
+    subgraph Pi400["Raspberry Pi 400 - Linux Supervisor Domain"]
         WDG[Watchdog Server<br/>Deterministic Monitor]
         SafeCtrl[Safe State Controller<br/>Emergency Brake]
     end
@@ -114,48 +114,44 @@ graph TB
 - Receives velocity commands (`velocity_scale`) from Decision Node
 - Controls DRV8833 IN1/IN2 via GPIO 12 and GPIO 16 (3.3 V logic signals only — no motor supply on Pi GPIO)
 - Enforces `velocity_scale = 0.0` (motor stop) in SAFE_STATE, INIT, and any unhandled state
-- **Critical**: Accepts emergency stop from QNX supervisor (GPIO 25 active-low, polled at 100 Hz)
+- **Critical**: Accepts emergency stop from Pi400 supervisor (GPIO 25 active-low, polled at 100 Hz)
 - Motor rotates only if: (a) system state is NORMAL or allowed WARNING/DEGRADED, AND (b) Motor Switch is ON
 
 **Health Monitor**
-- Manages I2C Q&A watchdog as I2C master (GPIO 2/3)
+- Manages UDP Q&A watchdog as client (dedicated Ethernet, port 9001)
 - Reads seed from Pi400, computes response (`seed XOR 0xA5A5A5A5`), sends within valid window
-- Drives Green LED (GPIO 17) to indicate NORMAL state
-- Monitors ROS2 node liveness
+- Drives Green/Yellow LED (GPIO 17/27) and buzzer (GPIO 18) based on system state
+- Monitors ROS2 node liveness (flow check)
 
-### QNX-Inspired Domain (Raspberry Pi 400 or Linux Fallback)
+### Supervisor Domain (Raspberry Pi 400)
 
-**Watchdog Server**
-- Acts as UDP server (port 9001, dedicated Ethernet) — QOperates as I2C slave (address `0x40`, GPIO 2/3) — Q&A watchdog monitorA watchdog monitor
-- Issues seeds, validates Pi5 responses for timing (50–100 ms window) and correctness
-- Manages failure counter: +1 on bad/late/early response, −1 after 2 consecutive correct
-- Triggers SAFE_STATE when failure counter reaches 3
-
-**Safe State Controller**
-- Executes safe state (emergency brake, motor disable)
-- Independent of AI inference results
-- Deterministic, rule-based logic only
+**Watchdog Server** (`pi400_supervisor/scripts/watchdog_server.py`)
+- Acts as UDP server (port 9001, dedicated Ethernet 192.168.50.20)
+- Issues seeds, validates Pi5 responses for timing (30ms window: 15ms closed + 15ms open) and correctness (CRC-16, sequence counter)
+- Manages failure counter: +1 on bad/late/early response, −1 after 2 consecutive correct; ≥3 → SAFE_STATE
+- Asserts GPIO 25 LOW (e-stop, active-low) at boot as fail-safe default
+- Releases GPIO 25 HIGH only after first valid Q&A exchange
+- Drives red LED (GPIO 22) independently of Pi5
 
 ## FFI-Inspired Measures
 
 ### Freedom from Interference (FFI-Inspired)
 
 **Spatial Independence**
-- Physically separate processors for development and safety domains
-- QNX supervisor cannot be corrupted by Linux kernel panics or AI inference failures
+- Physically separate processors for perception and supervisor domains
+- Linux supervisor process cannot be corrupted by Pi5 kernel panics or AI inference failures
 
 **Temporal Independence**
-- Deterministic watchdog timeout thresholds (configurable, e.g., 500ms)
+- Deterministic watchdog timeout thresholds based on supervisor's local monotonic clock
 - Safety decisions do not depend on AI inference timing
 
 **Communication Independence**
-- Watchdog uses I2C Q&A challenge/response (not reliant on ROS2 or shared memory)
-- Emergency stop uses direct GPIO (GPIO 25 Pi400 → GPIO 25 Pi5), independent of I2C
-- Shared memory region with CRC checking for state reporting (secondary channel)
+- Watchdog uses UDP Q&A challenge/response over dedicated Ethernet (independent of ROS2/DDS)
+- Emergency stop uses direct GPIO wire (GPIO 25 Pi400 → GPIO 25 Pi5) — no software stack on e-stop path
 
 **Design Independence**
 - Safety logic designed and reviewed separately from AI perception
-- Different programming languages/frameworks acceptable (C++ ROS2 vs C QNX)
+- Different programming paradigms (C++20 ROS2 vs Python deterministic supervisor)
 
 ## Safety Architecture Patterns
 
@@ -188,12 +184,12 @@ stateDiagram-v2
 
 ## Interface Boundaries
 
-### Linux → QNX (Pi5 → Pi400)
-- **I2C Q&A Watchdog** (GPIO 2/3, I2C master): Seed read + response write, 50–100 ms window
-- **Shared State** (optional): System health enum + CRC via `/dev/shm/safety_state`
+### Pi5 → Pi400
+- **UDP Q&A Watchdog** (Ethernet 192.168.50.x, port 9001): response to seed within 15–30 ms window
 
-### QNX → Linux (Pi400 → Pi5)
+### Pi400 → Pi5
 - **Emergency Stop GPIO 25** (active-low): Direct wire Pi400 GPIO 25 → Pi5 GPIO 25
+- **UDP status packet**: `failure_counter`, `state`, `released`, `cycle` after each watchdog cycle
 
 ### Shared Visual Output
 - **Red LED** (wired-OR): Pi5 GPIO 22 and Pi400 GPIO 22 both drive the red LED via 1N4148 diodes; either domain can independently assert SAFE STATE indication
@@ -203,12 +199,12 @@ See [interfaces.yaml](../requirements/interfaces.yaml) for detailed message spec
 ## Deployment Notes
 
 ### Development Setup
-- Pi 5: Ubuntu 22.04 + ROS2 Humble
-- Pi 400: Linux with QNX-inspired watchdog patterns (POSIX timers, deterministic scheduling)
+- Pi 5: Raspberry Pi OS Bookworm + ROS2 Humble (built from source)
+- Pi 400: Raspberry Pi OS Bookworm, Python supervisor (`pi400_supervisor/systemd/`)
 
-### Future Production Considerations
-- Pi 400 could run QNX RTOS with certified BSP
-- ASIL-B qualification would require full process compliance (not demonstrated here)
+### Production Considerations
+- ASIL-B qualification would require full process compliance, certified RTOS, WCET analysis — not demonstrated here
+- The supervisor role (Pi400) could be replaced by a dedicated MCU (e.g., STM32, Infineon TC3xx) for sub-100 ms startup and deterministic scheduling
 
 ## References
 

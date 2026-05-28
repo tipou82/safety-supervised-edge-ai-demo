@@ -26,7 +26,7 @@ Implement or prototype the Raspberry Pi 400 supervisor concept, demonstrating wa
 
 - [ ] Confirm hardware: Raspberry Pi 400 with GPIO access and QNX or Linux OS
 - [ ] Document OS selection decision in `docs/logbook.md` (QNX attempted / Linux fallback used)
-- [ ] Implement `qnx_wdg_server` (or Linux equivalent) monitoring heartbeat GPIO at 10 ms cycle
+- [ ] Implement `watchdog_server` (or Linux equivalent) monitoring heartbeat GPIO at 10 ms cycle
 - [ ] Implement `safe_state_ctrl` (or Linux equivalent) asserting e-stop GPIO on timeout
 - [ ] Set watchdog thread priority (FIFO 250 for watchdog, FIFO 255 for safe-state control)
 - [ ] Verify e-stop GPIO is asserted at boot (fail-safe default)
